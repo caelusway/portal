@@ -6,7 +6,6 @@ import clientElizaLogger from './src/lib/logger';
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }): UserConfig => {
-  // Load env from root directory
   const envDir = path.resolve(__dirname, '../..');
   const env = loadEnv(mode, envDir, '');
 
@@ -51,9 +50,6 @@ export default defineConfig(({ mode }): UserConfig => {
       'import.meta.env.SUPABASE_JWT_SECRET': JSON.stringify(env.SUPABASE_JWT_SECRET),
       'import.meta.env.REACT_APP_PUBLIC_POSTHOG_KEY': JSON.stringify(
         env.REACT_APP_PUBLIC_POSTHOG_KEY
-      ),
-      'import.meta.env.REACT_APP_PUBLIC_POSTHOG_HOST': JSON.stringify(
-        env.REACT_APP_PUBLIC_POSTHOG_HOST
       ),
     },
     build: {

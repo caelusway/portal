@@ -1,8 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY;
+import { config } from 'dotenv';
+import path from 'path';
+
+// Load environment variables from root .env file
+const rootEnvPath = path.resolve(process.cwd(), '../../.env');
+config({ path: rootEnvPath });
+
+const supabaseUrl = process.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceKey =
+  process.env.VITE_SUPABASE_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables:', {
+    url: supabaseUrl ? 'present' : 'missing',
+    key: supabaseAnonKey ? 'present' : 'missing',
+  });
+  throw new Error(
+    'Missing Supabase environment variables. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file.'
+  );
+}
 
 // Create a client for each JWT token
 let supabaseInstance: ReturnType<typeof createClient> | null = null;
