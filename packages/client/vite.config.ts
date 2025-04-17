@@ -85,6 +85,13 @@ export default defineConfig(({ mode }): UserConfig => {
           process.env.POSTHOG_HOST ||
           ''
       ),
+      'import.meta.env.VITE_SUPABASE_JWT_SECRET': JSON.stringify(
+        env.VITE_SUPABASE_JWT_SECRET ||
+          env.SUPABASE_JWT_SECRET ||
+          process.env.VITE_SUPABASE_JWT_SECRET ||
+          process.env.SUPABASE_JWT_SECRET ||
+          ''
+      ),
     },
     build: {
       outDir: 'dist',
