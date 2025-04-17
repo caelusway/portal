@@ -29,6 +29,7 @@ import { sendLevelUpEmailAction } from './actions/send-level-up-email';
 // Import services
 import { UserLevelService } from './services/user-level-service';
 import { SupabaseService } from './services/supabase-service';
+import { DiscordService as DiscordService1 } from './services/discordService';
 
 // Import Discord module
 import { DiscordService } from './discord/service';
@@ -161,6 +162,7 @@ export const plugin: Plugin = {
 
     // Register Discord service
     runtime.registerService(DiscordService);
+    runtime.registerService(DiscordService1);
 
     // Register providers
     runtime.registerProvider(channelStateProvider);
@@ -250,7 +252,8 @@ export const plugin: Plugin = {
       },
     ],
   },
-  services: [UserLevelService, SupabaseService, DiscordService],
+
+  services: [UserLevelService, SupabaseService, DiscordService, DiscordService1],
   actions: [
     checkLevelRequirementsAction,
     fetchUserLevelAction,
