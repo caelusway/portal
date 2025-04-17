@@ -149,10 +149,15 @@ export const plugin: Plugin = {
       );
     }
     // Register Discord actions
-    runtime.registerAction(chatWithAttachments);
-    runtime.registerAction(downloadMedia);
-    runtime.registerAction(summarizeConversation);
-    runtime.registerAction(transcribeMedia);
+    runtime.registerAction(incrementUserLevelAction);
+    runtime.registerAction(updateUserLevelAction);
+    runtime.registerAction(fetchUserLevelAction);
+    runtime.registerAction(checkLevelRequirementsAction);
+    runtime.registerAction(getUserLevelAction);
+    runtime.registerAction(sendLevelUpEmailAction);
+    runtime.registerAction(sendEmailAction);
+    runtime.registerAction(inviteDiscordBotAction);
+    runtime.registerAction(checkDiscordMemberCountAction);
 
     // Register Discord service
     runtime.registerService(DiscordService);

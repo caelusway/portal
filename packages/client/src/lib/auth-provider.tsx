@@ -19,36 +19,36 @@ const privyConfig = {
 // Function to generate JWT token
 async function generateJwtToken(privyUserId: string): Promise<string> {
   try {
-    const jwtSecret = import.meta.env.SUPABASE_JWT_SECRET;
-    
+    const jwtSecret = import.meta.env.VITE_SUPABASE_JWT_SECRET;
+
     if (!jwtSecret) {
       console.error('Missing SUPABASE_JWT_SECRET in environment variables');
       throw new Error('Missing JWT Secret');
     }
-    
+
     const secret = new TextEncoder().encode(jwtSecret);
     const now = Math.floor(Date.now() / 1000);
     const exp = now + 24 * 60 * 60; // 24 hours expiration (increased from 1 hour)
-    
+
     const claims = {
       privy_id: privyUserId,
       role: 'authenticated',
       aud: 'authenticated',
       sub: privyUserId,
-      exp: exp
+      exp: exp,
     };
-    
+
     console.log('Generating JWT with claims:', claims);
-    
+
     const jwt = await new jose.SignJWT(claims)
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt(now)
       .setExpirationTime(exp)
       .setAudience('authenticated')
       .sign(secret);
-    
+
     console.log(`JWT Token (first 40 chars): ${jwt.substring(0, 40)}...`);
-    
+
     return jwt;
   } catch (error) {
     console.error('Error generating JWT token:', error);
@@ -80,30 +80,33 @@ function PrivyAuthIntegration({ children }: PropsWithChildren) {
     if (isProcessingAuth) return;
 
     // Handle login - only when first authenticated or when user ID changes
-    if (isAuthenticated && currentUserId && 
-        (!prevAuth || prevUserId !== currentUserId || !jwtSetRef.current)) {
+    if (
+      isAuthenticated &&
+      currentUserId &&
+      (!prevAuth || prevUserId !== currentUserId || !jwtSetRef.current)
+    ) {
       setIsProcessingAuth(true);
       jwtSetRef.current = false; // Reset the flag
 
       const setupAuth = async () => {
         try {
-          console.log("Privy authenticated, generating Supabase auth token...");
+          console.log('Privy authenticated, generating Supabase auth token...');
 
           // Generate JWT token directly instead of calling edge function
           const signedJwt = await generateJwtToken(currentUserId);
 
           if (signedJwt) {
             console.log('JWT generated successfully');
-            
+
             // Store the token in component state
             setJwtToken(signedJwt);
-            
+
             // Set the JWT in the Supabase client (this creates a new client with the token)
             setSupabaseJwt(signedJwt);
             jwtSetRef.current = true; // Mark JWT as set
             console.log('Supabase client configured with Authorization header');
           } else {
-            console.error("Failed to generate JWT token");
+            console.error('Failed to generate JWT token');
             setJwtToken(null);
             setSupabaseJwt(null);
           }
@@ -117,15 +120,14 @@ function PrivyAuthIntegration({ children }: PropsWithChildren) {
       };
 
       setupAuth();
-    } 
+    }
     // Handle logout - only when going from authenticated to unauthenticated
     else if (!isAuthenticated && prevAuth) {
-      console.log("Privy logged out, clearing JWT token.");
+      console.log('Privy logged out, clearing JWT token.');
       setJwtToken(null);
       setSupabaseJwt(null);
       jwtSetRef.current = false;
     }
-    
   }, [isAuthenticated, user?.id]);
 
   return <>{children}</>;
@@ -146,9 +148,7 @@ export function PrivyAuthProvider({ children }: PropsWithChildren) {
         embeddedWallets: privyConfig.embeddedWallets,
       }}
     >
-      <PrivyAuthIntegration>
-        {children}
-      </PrivyAuthIntegration>
+      <PrivyAuthIntegration>{children}</PrivyAuthIntegration>
     </PrivyProvider>
   );
 }
