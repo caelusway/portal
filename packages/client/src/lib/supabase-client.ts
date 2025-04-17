@@ -1,17 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-import { config } from 'dotenv';
-import path from 'path';
-
-// Load environment variables from root .env file
-const rootEnvPath = path.resolve(process.cwd(), '../../.env');
-config({ path: rootEnvPath });
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey =
-  process.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceKey =
-  process.env.VITE_SUPABASE_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY;
 
 // Create a client for each JWT token
 let supabaseInstance: ReturnType<typeof createClient> | null = null;
