@@ -1,13 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_KEY;
+const supabaseUrl = process.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseServiceKey =
+  process.env.VITE_SUPABASE_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables:', {
     url: supabaseUrl ? 'present' : 'missing',
-    key: supabaseAnonKey ? 'present' : 'missing'
+    key: supabaseAnonKey ? 'present' : 'missing',
   });
   throw new Error(
     'Missing Supabase environment variables. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your .env file.'
@@ -26,8 +28,8 @@ export const getSupabase = () => {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
-        detectSessionInUrl: false
-      }
+        detectSessionInUrl: false,
+      },
     });
   }
   return supabaseInstance;
@@ -52,13 +54,13 @@ export const setSupabaseJwt = (jwt: string | null) => {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
-        detectSessionInUrl: false
+        detectSessionInUrl: false,
       },
       global: {
         headers: {
-          Authorization: `Bearer ${jwt}`
-        }
-      }
+          Authorization: `Bearer ${jwt}`,
+        },
+      },
     });
   } else {
     // Reset to a clean client without auth header
@@ -66,8 +68,8 @@ export const setSupabaseJwt = (jwt: string | null) => {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
-        detectSessionInUrl: false
-      }
+        detectSessionInUrl: false,
+      },
     });
   }
 };
@@ -75,15 +77,15 @@ export const setSupabaseJwt = (jwt: string | null) => {
 // Service role client for admin operations (bypasses RLS)
 export const supabaseAdmin = supabaseServiceKey
   ? createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false
-    },
-    global: {
-      headers: {
-        'apikey': supabaseServiceKey
-      }
-    }
-  })
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+      global: {
+        headers: {
+          apikey: supabaseServiceKey,
+        },
+      },
+    })
   : null;
