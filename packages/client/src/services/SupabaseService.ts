@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+import { supabase } from '../lib/supabase-client';
 export interface UserLevel {
   id: string;
   privy_id: string;
@@ -30,17 +31,10 @@ export interface LevelRequirement {
 
 export class SupabaseService {
   private static instance: SupabaseService;
-  private client: SupabaseClient;
+  public client: SupabaseClient;
 
   private constructor() {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Missing Supabase environment variables');
-    }
-
-    this.client = createClient(supabaseUrl, supabaseAnonKey);
+    this.client = supabase;
   }
 
   public static getInstance(): SupabaseService {
