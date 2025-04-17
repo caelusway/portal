@@ -59,11 +59,13 @@ export const supabaseStateProvider: Provider = {
       // Get the allowed actions for the current level
       const allowedActions = getAllowedActionsForLevel(userLevel.level);
 
-      // Get the level requirements for the next level
-      const nextLevel = 1;
+      // Calculate next level correctly
+      const nextLevel = userLevel.level + 1;
+
+      // Get the level requirements for the actual next level
       const levelRequirements = await userLevelService.getLevelRequirements(nextLevel);
 
-      // Check which requirements are completed
+      // Check which requirements are completed for the actual next level
       const completedRequirements = await userLevelService.checkRequirements(userId, nextLevel);
 
       // Format the response text
@@ -77,7 +79,12 @@ export const supabaseStateProvider: Provider = {
           const isCompleted = completedRequirements.some(
             (comp) => comp.requirement_id === req.id && comp.completed
           );
-          responseText += `\n- ${req.description} (${isCompleted ? 'Completed' : 'Not completed'})`;
+          // Use requirement description directly if available, otherwise use the metric name
+          const description =
+            req.description ||
+            req.requirements_config?.conditions?.[0]?.metric ||
+            'Unknown requirement';
+          responseText += `\n- ${description} (${isCompleted ? 'Completed' : 'Not completed'})`;
         });
       } else {
         responseText += ` This is the maximum level.`;

@@ -46,7 +46,10 @@ import { readContract } from 'viem/actions';
 const LEVELS = {
   1: { label: 'App Started', requirements: ['Wallet connected'] },
   2: { label: 'Science NFTs Minted', requirements: ['Minted Idea NFT', 'Minted Vision NFT'] },
-  3: { label: 'Community Initiated', requirements: ['Discord created', '4 Discord members'] },
+  3: {
+    label: 'Community Initiated',
+    requirements: ['Share Invite Link', 'Invite Portal Bot', '4 Discord members'],
+  },
   4: {
     label: 'Community Growth + Proof',
     requirements: ['10 Discord members', '25 papers shared', '100 messages sent'],
@@ -96,24 +99,6 @@ function MessageContent({
         {...(message.name === USER_NAME ? { variant: 'sent' } : {})}
         {...(!message.text ? { className: 'bg-transparent' } : {})}
       >
-        {message.name !== USER_NAME && (
-          <div className="w-full">
-            {message.text && message.thought && (
-              <Collapsible className="mb-1">
-                <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors group">
-                  <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
-                  Thought Process
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pl-5 pt-1">
-                  <Badge variant="outline" className="text-xs">
-                    {message.thought}
-                  </Badge>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-          </div>
-        )}
-
         <div className="py-2">
           {message.name === USER_NAME ? (
             message.text

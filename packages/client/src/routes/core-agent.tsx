@@ -19,7 +19,10 @@ import { useWelcomeForm } from '@/lib/welcome-form-context';
 const LEVELS = {
   1: { label: 'App Started', requirements: ['Wallet connected'] },
   2: { label: 'Science NFTs Minted', requirements: ['Minted Idea NFT', 'Minted Vision NFT'] },
-  3: { label: 'Community Initiated', requirements: ['Discord created', '4 Discord members'] },
+  3: {
+    label: 'Community Initiated',
+    requirements: ['Process Invite Link', 'Invite Portal Bot', '4 Discord members'],
+  },
   4: {
     label: 'Community Growth + Proof',
     requirements: ['10 Discord members', '25 papers shared', '100 messages sent'],

@@ -9,7 +9,8 @@ export const LEVEL_ACTIONS: Record<number, string[]> = {
     'general_help',
   ],
   2: [
-    'discord_creation', // Action needed to progress FROM level 2 TO level 3
+    'process_discord_invite',
+    'invite_discord_bot', // Action needed to progress FROM level 2 TO level 3
     'query_project_status',
     'query_nft_status',
     'general_help',

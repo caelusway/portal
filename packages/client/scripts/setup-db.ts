@@ -111,44 +111,78 @@ async function setupDatabase() {
       EXECUTE PROCEDURE update_updated_at_column();
     `;
 
-    // Requirements Progress - Schema
-    const requirementsProgressSchemaSql = `
-      CREATE TABLE IF NOT EXISTS requirement_progress (
+    // Requirements Definitions Schema SQL
+    const requirementDefinitionsSchemaSql = `
+      CREATE TABLE IF NOT EXISTS requirement_definitions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        privy_id TEXT NOT NULL,
-        level INTEGER NOT NULL,
-        requirement TEXT NOT NULL,
-        completed BOOLEAN NOT NULL DEFAULT false,
-        completed_at TIMESTAMP WITH TIME ZONE,
+        requirement_key TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL,
+        requirement_type TEXT NOT NULL CHECK (requirement_type IN ('nft', 'discord', 'message', 'paper')),
+        metric_name TEXT,
+        metric_target INTEGER,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        UNIQUE(privy_id, level, requirement)
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
-      DROP INDEX IF EXISTS idx_requirement_progress_user_id;
-      CREATE INDEX IF NOT EXISTS idx_requirement_progress_privy_id ON requirement_progress(privy_id);
-      CREATE INDEX IF NOT EXISTS idx_requirement_progress_level ON requirement_progress(level);
-      CREATE INDEX IF NOT EXISTS idx_requirement_progress_completed ON requirement_progress(completed);
-      DROP TRIGGER IF EXISTS update_requirement_progress_updated_at ON requirement_progress;
-      CREATE TRIGGER update_requirement_progress_updated_at
-      BEFORE UPDATE ON requirement_progress
+      
+      DROP TRIGGER IF EXISTS update_requirement_definitions_updated_at ON requirement_definitions;
+      CREATE TRIGGER update_requirement_definitions_updated_at
+      BEFORE UPDATE ON requirement_definitions
       FOR EACH ROW
       EXECUTE PROCEDURE update_updated_at_column();
     `;
 
-    // Level Requirements - Schema
+    // Level Requirements Schema SQL
     const levelRequirementsSchemaSql = `
       CREATE TABLE IF NOT EXISTS level_requirements (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        level INTEGER NOT NULL UNIQUE,
+        level INTEGER UNIQUE NOT NULL,
         description TEXT NOT NULL,
-        requirements_config JSONB NOT NULL,
+        requirements_config JSONB NOT NULL DEFAULT '{}'::jsonb,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS idx_level_requirements_level ON level_requirements(level);
+      
+      CREATE TABLE IF NOT EXISTS level_requirement_mappings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        level_id UUID REFERENCES level_requirements(id) ON DELETE CASCADE,
+        requirement_id UUID REFERENCES requirement_definitions(id) ON DELETE CASCADE,
+        order_index INTEGER NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(level_id, requirement_id)
+      );
+      
       DROP TRIGGER IF EXISTS update_level_requirements_updated_at ON level_requirements;
       CREATE TRIGGER update_level_requirements_updated_at
       BEFORE UPDATE ON level_requirements
+      FOR EACH ROW
+      EXECUTE PROCEDURE update_updated_at_column();
+      
+      DROP TRIGGER IF EXISTS update_level_requirement_mappings_updated_at ON level_requirement_mappings;
+      CREATE TRIGGER update_level_requirement_mappings_updated_at
+      BEFORE UPDATE ON level_requirement_mappings
+      FOR EACH ROW
+      EXECUTE PROCEDURE update_updated_at_column();
+    `;
+
+    // Requirements Progress Schema SQL
+    const requirementsProgressSchemaSql = `
+      CREATE TABLE IF NOT EXISTS requirement_progress (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        privy_id TEXT NOT NULL,
+        requirement_id UUID REFERENCES requirement_definitions(id) ON DELETE CASCADE,
+        level INTEGER NOT NULL,
+        completed BOOLEAN DEFAULT false,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        metric_value INTEGER DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(privy_id, requirement_id, level)
+      );
+      
+      DROP TRIGGER IF EXISTS update_requirement_progress_updated_at ON requirement_progress;
+      CREATE TRIGGER update_requirement_progress_updated_at
+      BEFORE UPDATE ON requirement_progress
       FOR EACH ROW
       EXECUTE PROCEDURE update_updated_at_column();
     `;
@@ -440,6 +474,345 @@ async function setupDatabase() {
       GRANT EXECUTE ON FUNCTION public.get_user_level(text) TO authenticated, service_role, anon;
       GRANT EXECUTE ON FUNCTION public.create_default_user_level(text) TO authenticated, service_role, anon;
       GRANT EXECUTE ON FUNCTION public.get_row_level_security_info() TO authenticated, service_role, anon;
+
+      -- Function to get level requirements with definitions
+      CREATE OR REPLACE FUNCTION public.get_level_requirements(p_level integer)
+      RETURNS jsonb LANGUAGE plpgsql AS $$
+      DECLARE
+        result jsonb;
+        level_data jsonb;
+        requirements jsonb;
+      BEGIN
+        -- Get the level data
+        SELECT to_jsonb(lr) INTO level_data
+        FROM level_requirements lr
+        WHERE lr.level = p_level;
+        
+        IF level_data IS NULL THEN
+          RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Level requirements not found',
+            'level', p_level
+          );
+        END IF;
+        
+        -- Get the requirements with their definitions
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', rd.id,
+            'requirement_key', rd.requirement_key,
+            'description', rd.description,
+            'requirement_type', rd.requirement_type,
+            'metric_name', rd.metric_name,
+            'metric_target', rd.metric_target,
+            'order_index', lrm.order_index
+          ) ORDER BY lrm.order_index
+        )
+        INTO requirements
+        FROM level_requirement_mappings lrm
+        JOIN requirement_definitions rd ON rd.id = lrm.requirement_id
+        WHERE lrm.level_id = (level_data->>'id')::uuid;
+        
+        RETURN jsonb_build_object(
+          'success', true,
+          'level_data', level_data,
+          'requirements', COALESCE(requirements, '[]'::jsonb)
+        );
+      END;
+      $$;
+
+      -- Function to check if a user has completed all requirements for a level
+      CREATE OR REPLACE FUNCTION public.check_level_requirements(p_privy_id text, p_level integer)
+      RETURNS jsonb LANGUAGE plpgsql AS $$
+      DECLARE
+        result jsonb;
+        level_data jsonb;
+        requirements jsonb;
+        completed_count integer;
+        total_count integer;
+        completed_requirements jsonb;
+        missing_requirements jsonb;
+      BEGIN
+        -- Get the level requirements
+        SELECT public.get_level_requirements(p_level) INTO level_data;
+        
+        IF NOT (level_data->>'success')::boolean THEN
+          RETURN level_data;
+        END IF;
+        
+        -- Extract requirements
+        requirements := level_data->'requirements';
+        
+        IF requirements IS NULL OR jsonb_array_length(requirements) = 0 THEN
+          -- No requirements for this level
+          RETURN jsonb_build_object(
+            'success', true,
+            'completed', true,
+            'level', p_level,
+            'completed_requirements', '[]'::jsonb,
+            'missing_requirements', '[]'::jsonb,
+            'completed_count', 0,
+            'total_count', 0
+          );
+        END IF;
+        
+        -- Count completed requirements
+        SELECT 
+          COUNT(*) FILTER (WHERE rp.completed = true),
+          COUNT(*)
+        INTO 
+          completed_count,
+          total_count
+        FROM requirement_progress rp
+        JOIN requirement_definitions rd ON rd.id = rp.requirement_id
+        WHERE rp.privy_id = p_privy_id
+        AND rp.level = p_level;
+        
+        -- Get completed requirements
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'requirement_key', rd.requirement_key,
+            'description', rd.description,
+            'requirement_type', rd.requirement_type,
+            'completed', rp.completed,
+            'completed_at', rp.completed_at,
+            'metric_value', rp.metric_value,
+            'metric_target', rd.metric_target
+          )
+        )
+        INTO completed_requirements
+        FROM requirement_progress rp
+        JOIN requirement_definitions rd ON rd.id = rp.requirement_id
+        WHERE rp.privy_id = p_privy_id
+        AND rp.level = p_level
+        AND rp.completed = true;
+        
+        -- Get missing requirements
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'requirement_key', rd.requirement_key,
+            'description', rd.description,
+            'requirement_type', rd.requirement_type,
+            'completed', COALESCE(rp.completed, false),
+            'completed_at', rp.completed_at,
+            'metric_value', COALESCE(rp.metric_value, 0),
+            'metric_target', rd.metric_target
+          )
+        )
+        INTO missing_requirements
+        FROM requirement_definitions rd
+        JOIN level_requirement_mappings lrm ON lrm.requirement_id = rd.id
+        JOIN level_requirements lr ON lr.id = lrm.level_id
+        LEFT JOIN requirement_progress rp ON rp.requirement_id = rd.id 
+          AND rp.privy_id = p_privy_id 
+          AND rp.level = p_level
+        WHERE lr.level = p_level
+        AND (rp.completed IS NULL OR rp.completed = false);
+        
+        -- Build result
+        result := jsonb_build_object(
+          'success', true,
+          'completed', completed_count = total_count AND total_count > 0,
+          'level', p_level,
+          'completed_requirements', COALESCE(completed_requirements, '[]'::jsonb),
+          'missing_requirements', COALESCE(missing_requirements, '[]'::jsonb),
+          'completed_count', completed_count,
+          'total_count', total_count
+        );
+        
+        RETURN result;
+      END;
+      $$;
+
+      -- Function to mark a requirement as completed
+      CREATE OR REPLACE FUNCTION public.mark_requirement_completed(
+        p_privy_id text,
+        p_level integer,
+        p_requirement_key text,
+        p_metric_value integer DEFAULT NULL,
+        p_completed boolean DEFAULT true
+      )
+      RETURNS jsonb LANGUAGE plpgsql AS $$
+      DECLARE
+        result jsonb;
+        requirement_id uuid;
+        existing_record jsonb;
+        inserted_record jsonb;
+      BEGIN
+        -- Get the requirement ID from the key
+        SELECT id INTO requirement_id
+        FROM requirement_definitions
+        WHERE requirement_key = p_requirement_key;
+        
+        IF requirement_id IS NULL THEN
+          RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Requirement not found',
+            'requirement_key', p_requirement_key
+          );
+        END IF;
+        
+        -- Check if the requirement exists for the user
+        SELECT to_jsonb(rp) INTO existing_record
+        FROM requirement_progress rp
+        WHERE rp.privy_id = p_privy_id
+        AND rp.level = p_level
+        AND rp.requirement_id = requirement_id;
+        
+        IF existing_record IS NOT NULL THEN
+          -- Update existing record
+          UPDATE requirement_progress
+          SET 
+            completed = p_completed,
+            completed_at = CASE WHEN p_completed THEN NOW() ELSE NULL END,
+            metric_value = COALESCE(p_metric_value, metric_value),
+            updated_at = NOW()
+          WHERE privy_id = p_privy_id
+          AND level = p_level
+          AND requirement_id = requirement_id
+          RETURNING to_jsonb(requirement_progress.*) INTO inserted_record;
+        ELSE
+          -- Insert new record
+          INSERT INTO requirement_progress (
+            privy_id,
+            level,
+            requirement_id,
+            completed,
+            completed_at,
+            metric_value
+          )
+          VALUES (
+            p_privy_id,
+            p_level,
+            requirement_id,
+            p_completed,
+            CASE WHEN p_completed THEN NOW() ELSE NULL END,
+            COALESCE(p_metric_value, 0)
+          )
+          RETURNING to_jsonb(requirement_progress.*) INTO inserted_record;
+        END IF;
+        
+        -- Check if all requirements for the level are completed
+        IF p_completed THEN
+          -- Call the update_user_level_if_eligible function to check if user can level up
+          SELECT public.update_user_level_if_eligible(p_privy_id) INTO result;
+        ELSE
+          result := jsonb_build_object(
+            'success', true,
+            'requirement_updated', inserted_record
+          );
+        END IF;
+        
+        RETURN result;
+      END;
+      $$;
+
+      -- Function to update a requirement's metric value
+      CREATE OR REPLACE FUNCTION public.update_requirement_metric(
+        p_privy_id text,
+        p_level integer,
+        p_requirement_key text,
+        p_metric_value integer
+      )
+      RETURNS jsonb LANGUAGE plpgsql AS $$
+      DECLARE
+        result jsonb;
+        requirement_id uuid;
+        requirement_record record;
+        existing_record jsonb;
+        updated_record jsonb;
+      BEGIN
+        -- Get the requirement ID and details from the key
+        SELECT rd.* INTO requirement_record
+        FROM requirement_definitions rd
+        WHERE rd.requirement_key = p_requirement_key;
+        
+        IF requirement_record IS NULL THEN
+          RETURN jsonb_build_object(
+            'success', false,
+            'error', 'Requirement not found',
+            'requirement_key', p_requirement_key
+          );
+        END IF;
+        
+        -- Check if the requirement exists for the user
+        SELECT to_jsonb(rp) INTO existing_record
+        FROM requirement_progress rp
+        WHERE rp.privy_id = p_privy_id
+        AND rp.level = p_level
+        AND rp.requirement_id = requirement_record.id;
+        
+        IF existing_record IS NOT NULL THEN
+          -- Update existing record
+          UPDATE requirement_progress
+          SET 
+            metric_value = p_metric_value,
+            -- Auto-complete if metric target is met
+            completed = CASE 
+              WHEN requirement_record.metric_target IS NOT NULL 
+              AND p_metric_value >= requirement_record.metric_target 
+              THEN true 
+              ELSE completed 
+            END,
+            completed_at = CASE 
+              WHEN requirement_record.metric_target IS NOT NULL 
+              AND p_metric_value >= requirement_record.metric_target 
+              AND NOT completed 
+              THEN NOW() 
+              ELSE completed_at 
+            END,
+            updated_at = NOW()
+          WHERE privy_id = p_privy_id
+          AND level = p_level
+          AND requirement_id = requirement_record.id
+          RETURNING to_jsonb(requirement_progress.*) INTO updated_record;
+        ELSE
+          -- Insert new record
+          INSERT INTO requirement_progress (
+            privy_id,
+            level,
+            requirement_id,
+            metric_value,
+            completed,
+            completed_at
+          )
+          VALUES (
+            p_privy_id,
+            p_level,
+            requirement_record.id,
+            p_metric_value,
+            CASE 
+              WHEN requirement_record.metric_target IS NOT NULL 
+              AND p_metric_value >= requirement_record.metric_target 
+              THEN true 
+              ELSE false 
+            END,
+            CASE 
+              WHEN requirement_record.metric_target IS NOT NULL 
+              AND p_metric_value >= requirement_record.metric_target 
+              THEN NOW() 
+              ELSE NULL 
+            END
+          )
+          RETURNING to_jsonb(requirement_progress.*) INTO updated_record;
+        END IF;
+        
+        -- Check if requirement was completed and if user can level up
+        IF (updated_record->>'completed')::boolean THEN
+          SELECT public.update_user_level_if_eligible(p_privy_id) INTO result;
+        ELSE
+          result := jsonb_build_object(
+            'success', true,
+            'requirement_updated', updated_record
+          );
+        END IF;
+        
+        RETURN result;
+      END;
+      $$;
+
+      -- Grant execute permissions for new functions
+      GRANT EXECUTE ON FUNCTION public.update_requirement_metric(text, integer, text, integer) TO authenticated, service_role, anon;
     `;
 
     // Helper function to check level requirements
@@ -775,6 +1148,8 @@ async function setupDatabase() {
           'profiles_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'profiles'),
           'user_levels_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'user_levels'),
           'level_requirements_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'level_requirements'),
+          'requirement_definitions_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'requirement_definitions'),
+          'level_requirement_mappings_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'level_requirement_mappings'),
           'user_discord_info_table_exists', EXISTS(SELECT 1 FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename = 'user_discord_info'),
           'profiles_rls_enabled', EXISTS(
             SELECT 1 FROM pg_tables 
@@ -788,6 +1163,14 @@ async function setupDatabase() {
             SELECT 1 FROM pg_tables 
             WHERE schemaname = 'public' AND tablename = 'level_requirements' AND rowsecurity = true
           ),
+          'requirement_definitions_rls_enabled', EXISTS(
+            SELECT 1 FROM pg_tables 
+            WHERE schemaname = 'public' AND tablename = 'requirement_definitions' AND rowsecurity = true
+          ),
+          'level_requirement_mappings_rls_enabled', EXISTS(
+            SELECT 1 FROM pg_tables 
+            WHERE schemaname = 'public' AND tablename = 'level_requirement_mappings' AND rowsecurity = true
+          ),
           'user_discord_info_rls_enabled', EXISTS(
             SELECT 1 FROM pg_tables 
             WHERE schemaname = 'public' AND tablename = 'user_discord_info' AND rowsecurity = true
@@ -799,6 +1182,8 @@ async function setupDatabase() {
           'profiles_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.profiles'::regclass),
           'user_levels_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.user_levels'::regclass),
           'level_requirements_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.level_requirements'::regclass),
+          'requirement_definitions_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.requirement_definitions'::regclass),
+          'level_requirement_mappings_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.level_requirement_mappings'::regclass),
           'user_discord_info_policies', (SELECT jsonb_agg(jsonb_build_object('name', polname,'cmd', polcmd,'qual', pg_get_expr(polqual, polrelid, true),'with_check', pg_get_expr(polwithcheck, polrelid, true))) FROM pg_policy WHERE polrelid = 'public.user_discord_info'::regclass)
         ) INTO result;
         
@@ -879,6 +1264,14 @@ async function setupDatabase() {
       {
         name: 'Enable RLS on level_requirements',
         sql: 'ALTER TABLE level_requirements ENABLE ROW LEVEL SECURITY;',
+      },
+      {
+        name: 'Enable RLS on requirement_definitions',
+        sql: 'ALTER TABLE requirement_definitions ENABLE ROW LEVEL SECURITY;',
+      },
+      {
+        name: 'Enable RLS on level_requirement_mappings',
+        sql: 'ALTER TABLE level_requirement_mappings ENABLE ROW LEVEL SECURITY;',
       },
       {
         name: 'Enable RLS on user_discord_info',
@@ -1086,6 +1479,49 @@ async function setupDatabase() {
       },
     ];
 
+    // Add RLS policies for new tables
+    const requirementDefinitionsPoliciesStmts = [
+      {
+        name: 'Requirement Definitions SELECT policy',
+        sql: `
+          DROP POLICY IF EXISTS "Anyone can read requirement definitions" ON requirement_definitions;
+          CREATE POLICY "Anyone can read requirement definitions"
+          ON requirement_definitions FOR SELECT
+          USING (true);
+        `,
+      },
+      {
+        name: 'Requirement Definitions Service Role policy',
+        sql: `
+          DROP POLICY IF EXISTS "Service role can manage requirement definitions" ON requirement_definitions;
+          CREATE POLICY "Service role can manage requirement definitions"
+          ON requirement_definitions FOR ALL
+          USING (current_setting('role', true) = 'service_role');
+        `,
+      },
+    ];
+
+    const levelRequirementMappingsPoliciesStmts = [
+      {
+        name: 'Level Requirement Mappings SELECT policy',
+        sql: `
+          DROP POLICY IF EXISTS "Anyone can read level requirement mappings" ON level_requirement_mappings;
+          CREATE POLICY "Anyone can read level requirement mappings"
+          ON level_requirement_mappings FOR SELECT
+          USING (true);
+        `,
+      },
+      {
+        name: 'Level Requirement Mappings Service Role policy',
+        sql: `
+          DROP POLICY IF EXISTS "Service role can manage level requirement mappings" ON level_requirement_mappings;
+          CREATE POLICY "Service role can manage level requirement mappings"
+          ON level_requirement_mappings FOR ALL
+          USING (current_setting('role', true) = 'service_role');
+        `,
+      },
+    ];
+
     // Grant permissions
     const grantStmts = [
       {
@@ -1124,6 +1560,20 @@ async function setupDatabase() {
         `,
       },
       {
+        name: 'Grant requirement_definitions permissions',
+        sql: `
+          GRANT SELECT ON requirement_definitions TO authenticated, anon;
+          GRANT ALL ON requirement_definitions TO service_role;
+        `,
+      },
+      {
+        name: 'Grant level_requirement_mappings permissions',
+        sql: `
+          GRANT SELECT ON level_requirement_mappings TO authenticated, anon;
+          GRANT ALL ON level_requirement_mappings TO service_role;
+        `,
+      },
+      {
         name: 'Grant user_discord_info permissions',
         sql: `
           GRANT SELECT, INSERT, UPDATE ON user_discord_info TO authenticated;
@@ -1135,6 +1585,7 @@ async function setupDatabase() {
     // --- Group Statements ---
     const schemaStatements = [
       { name: 'Shared Function SQL', sql: sharedFunctionSql },
+      { name: 'Requirement Definitions Schema SQL', sql: requirementDefinitionsSchemaSql },
       { name: 'User Levels Schema SQL', sql: userLevelsSchemaSql },
       { name: 'Requirements Progress Schema SQL', sql: requirementsProgressSchemaSql },
       { name: 'Level Requirements Schema SQL', sql: levelRequirementsSchemaSql },
@@ -1157,6 +1608,8 @@ async function setupDatabase() {
       ...nftPoliciesStmts,
       ...requirementProgressPoliciesStmts,
       ...levelRequirementsPoliciesStmts,
+      ...requirementDefinitionsPoliciesStmts,
+      ...levelRequirementMappingsPoliciesStmts,
       ...userDiscordInfoPoliciesStmts,
       ...grantStmts,
     ];
@@ -1242,7 +1695,14 @@ async function setupDatabase() {
         const { data: tableCheck, error: tableCheckError } = await supabase
           .from('pg_tables')
           .select('tablename, rowsecurity')
-          .in('tablename', ['profiles', 'user_levels', 'level_requirements'])
+          .in('tablename', [
+            'profiles',
+            'user_levels',
+            'level_requirements',
+            'requirement_definitions',
+            'level_requirement_mappings',
+            'user_discord_info',
+          ])
           .eq('schemaname', 'public');
 
         if (tableCheckError) {
@@ -1254,11 +1714,27 @@ async function setupDatabase() {
           const levelRequirementsTable = tableCheck.find(
             (t) => t.tablename === 'level_requirements'
           );
+          const requirementDefinitionsTable = tableCheck.find(
+            (t) => t.tablename === 'requirement_definitions'
+          );
+          const levelRequirementMappingsTable = tableCheck.find(
+            (t) => t.tablename === 'level_requirement_mappings'
+          );
+          const userDiscordInfoTable = tableCheck.find((t) => t.tablename === 'user_discord_info');
 
           console.log(`   Profiles table exists: ${profilesTable ? 'Yes ✓' : 'No ❌'}`);
           console.log(`   User levels table exists: ${userLevelsTable ? 'Yes ✓' : 'No ❌'}`);
           console.log(
             `   Level requirements table exists: ${levelRequirementsTable ? 'Yes ✓' : 'No ❌'}`
+          );
+          console.log(
+            `   Requirement definitions table exists: ${requirementDefinitionsTable ? 'Yes ✓' : 'No ❌'}`
+          );
+          console.log(
+            `   Level requirement mappings table exists: ${levelRequirementMappingsTable ? 'Yes ✓' : 'No ❌'}`
+          );
+          console.log(
+            `   User Discord Info table exists: ${userDiscordInfoTable ? 'Yes ✓' : 'No ❌'}`
           );
 
           if (profilesTable) {
@@ -1276,6 +1752,24 @@ async function setupDatabase() {
           if (levelRequirementsTable) {
             console.log(
               `   Level requirements RLS enabled: ${levelRequirementsTable.rowsecurity ? 'Yes ✓' : 'No ❌'}`
+            );
+          }
+
+          if (requirementDefinitionsTable) {
+            console.log(
+              `   Requirement definitions RLS enabled: ${requirementDefinitionsTable.rowsecurity ? 'Yes ✓' : 'No ❌'}`
+            );
+          }
+
+          if (levelRequirementMappingsTable) {
+            console.log(
+              `   Level requirement mappings RLS enabled: ${levelRequirementMappingsTable.rowsecurity ? 'Yes ✓' : 'No ❌'}`
+            );
+          }
+
+          if (userDiscordInfoTable) {
+            console.log(
+              `   User Discord Info RLS enabled: ${userDiscordInfoTable.rowsecurity ? 'Yes ✓' : 'No ❌'}`
             );
           }
         }
@@ -1296,7 +1790,7 @@ async function setupDatabase() {
         } catch (err) {
           console.log(`   auth.uid() function check: Error ❌ (${err})`);
         }
-      } else {
+      } else if (statusCheck) {
         // Function exists, show detailed output
         console.log('✅ Tables and RLS Status:');
         console.log(
@@ -1307,6 +1801,12 @@ async function setupDatabase() {
         );
         console.log(
           `   Level requirements table exists: ${statusCheck.level_requirements_table_exists ? 'Yes ✓' : 'No ❌'}`
+        );
+        console.log(
+          `   Requirement definitions table exists: ${statusCheck.requirement_definitions_table_exists ? 'Yes ✓' : 'No ❌'}`
+        );
+        console.log(
+          `   Level requirement mappings table exists: ${statusCheck.level_requirement_mappings_table_exists ? 'Yes ✓' : 'No ❌'}`
         );
         console.log(
           `   User Discord Info table exists: ${statusCheck.user_discord_info_table_exists ? 'Yes ✓' : 'No ❌'}`
@@ -1321,16 +1821,22 @@ async function setupDatabase() {
           `   Level requirements RLS enabled: ${statusCheck.level_requirements_rls_enabled ? 'Yes ✓' : 'No ❌'}`
         );
         console.log(
-          `   User Discord Info RLS enabled: ${statusCheck.user_discord_info_rls_enabled ? 'Yes ✓' : 'No ❌'}`
+          `   Requirement definitions RLS enabled: ${statusCheck.requirement_definitions_rls_enabled ? 'Yes ✓' : 'No ❌'}`
         );
         console.log(
-          `   auth.uid() function exists: ${statusCheck.auth_uid_function_exists ? 'Yes ✓' : 'No ❌'}`
+          `   Level requirement mappings RLS enabled: ${statusCheck.level_requirement_mappings_rls_enabled ? 'Yes ✓' : 'No ❌'}`
+        );
+        console.log(
+          `   User Discord Info RLS enabled: ${statusCheck.user_discord_info_rls_enabled ? 'Yes ✓' : 'No ❌'}`
         );
 
         // Check policy counts
         const profilePolicies = statusCheck.profiles_policies || [];
         const userLevelsPolicies = statusCheck.user_levels_policies || [];
         const levelRequirementsPolicies = statusCheck.level_requirements_policies || [];
+        const requirementDefinitionsPolicies = statusCheck.requirement_definitions_policies || [];
+        const levelRequirementMappingsPolicies =
+          statusCheck.level_requirement_mappings_policies || [];
         const userDiscordInfoPolicies = statusCheck.user_discord_info_policies || [];
 
         console.log(
@@ -1343,6 +1849,12 @@ async function setupDatabase() {
           `   Level requirements has ${levelRequirementsPolicies.length} policies: ${levelRequirementsPolicies.length >= 2 ? 'Good ✓' : 'Not enough ❌'}`
         );
         console.log(
+          `   Requirement definitions has ${requirementDefinitionsPolicies.length} policies: ${requirementDefinitionsPolicies.length >= 2 ? 'Good ✓' : 'Not enough ❌'}`
+        );
+        console.log(
+          `   Level requirement mappings has ${levelRequirementMappingsPolicies.length} policies: ${levelRequirementMappingsPolicies.length >= 2 ? 'Good ✓' : 'Not enough ❌'}`
+        );
+        console.log(
           `   User Discord Info has ${userDiscordInfoPolicies.length} policies: ${userDiscordInfoPolicies.length >= 4 ? 'Good ✓' : 'Not enough ❌'}`
         );
 
@@ -1351,16 +1863,22 @@ async function setupDatabase() {
           statusCheck.profiles_table_exists &&
           statusCheck.user_levels_table_exists &&
           statusCheck.level_requirements_table_exists &&
+          statusCheck.requirement_definitions_table_exists &&
+          statusCheck.level_requirement_mappings_table_exists &&
           statusCheck.user_discord_info_table_exists;
         const hasRlsEnabled =
           statusCheck.profiles_rls_enabled &&
           statusCheck.user_levels_rls_enabled &&
           statusCheck.level_requirements_rls_enabled &&
+          statusCheck.requirement_definitions_rls_enabled &&
+          statusCheck.level_requirement_mappings_rls_enabled &&
           statusCheck.user_discord_info_rls_enabled;
         const hasEnoughPolicies =
           profilePolicies.length >= 3 &&
           userLevelsPolicies.length >= 4 &&
           levelRequirementsPolicies.length >= 2 &&
+          requirementDefinitionsPolicies.length >= 2 &&
+          levelRequirementMappingsPolicies.length >= 2 &&
           userDiscordInfoPolicies.length >= 4;
         const hasAuthFunction = statusCheck.auth_uid_function_exists;
 
@@ -1377,68 +1895,18 @@ async function setupDatabase() {
           console.log('   Consider running setup-db.ts again to fix any missing components.');
         }
       }
-
-      // Check JWT Config (This should always run)
-      console.log('\n✅ JWT Configuration:');
-      console.log('   JWT checking was configured - validation happens in Supabase');
-      console.log(
-        '   IMPORTANT: Ensure SUPABASE_JWT_SECRET in .env matches JWT Secret in Supabase Dashboard > Settings > API'
-      );
     } catch (error) {
       console.error('❌ Error during verification:', error);
     }
 
-    // --- Stage 4: Populate Level Requirements ---
-    console.log('\n--- Stage 4: Populating Level Requirements ---');
-    try {
-      // Check if level requirements already exist
-      const { data: existingLevels, error: checkError } = await supabase
-        .from('level_requirements')
-        .select('level')
-        .order('level');
-
-      if (checkError) {
-        console.error('Error checking existing level requirements:', checkError.message);
-      } else if (existingLevels && existingLevels.length > 0) {
-        console.log(
-          `Found ${existingLevels.length} existing level requirements. Skipping population.`
-        );
-      } else {
-        console.log('No existing level requirements found. Populating from agent-levels.ts...');
-
-        // Import the agent levels
-        const { agentLevels } = await import('../src/config/agent-levels');
-
-        // Prepare level requirements data
-        const levelRequirementsData = Object.values(agentLevels).map((level) => ({
-          level: level.level,
-          description: level.description,
-          requirements_config: {
-            levelupRequirements: level.levelupRequirements,
-            capabilities: level.capabilities,
-            metricRequirements: level.metricRequirements || {},
-            suggestedActions: level.suggestedActions || [],
-          },
-        }));
-
-        // Insert level requirements
-        const { error: insertError } = await supabase
-          .from('level_requirements')
-          .insert(levelRequirementsData);
-
-        if (insertError) {
-          console.error('Error inserting level requirements:', insertError.message);
-        } else {
-          console.log(`Successfully inserted ${levelRequirementsData.length} level requirements.`);
-        }
-      }
-    } catch (error) {
-      console.error('Error during level requirements population:', error);
-    }
-
-    console.log('\nDatabase setup script finished.');
+    // Check JWT Config (This should always run)
+    console.log('\n✅ JWT Configuration:');
+    console.log('   JWT checking was configured - validation happens in Supabase');
+    console.log(
+      '   IMPORTANT: Ensure SUPABASE_JWT_SECRET in .env matches JWT Secret in Supabase Dashboard > Settings > API'
+    );
   } catch (error) {
-    console.error('\n💥 Failed during database setup:', error);
+    console.error('❌ Error setting up database:', error);
     process.exit(1);
   }
 }
