@@ -24,7 +24,7 @@ export interface RequirementCompletion {
 }
 
 export interface UserLevelService extends Service {
-  getUserLevel(userId: string): Promise<UserLevel | null>;
+  getUserLevel(userId: string, bypassCache?: boolean): Promise<UserLevel | null>;
   getLevelRequirements(level: number): Promise<LevelRequirements[]>;
   checkRequirements(userId: string, level: number): Promise<RequirementCompletion[]>;
   hasMetLevelRequirements(userId: string, level: number): Promise<boolean>;
@@ -86,19 +86,24 @@ export class UserLevelService extends Service {
   /**
    * Get the current level of a user
    * @param userId The ID of the user
+   * @param bypassCache Optional flag to bypass the cache and fetch fresh data
    * @returns The user's level or null if not found
    */
-  async getUserLevel(userId: string): Promise<UserLevel | null> {
+  async getUserLevel(userId: string, bypassCache = false): Promise<UserLevel | null> {
     try {
-      logger.info(`[UserLevelService] Getting user level for user ID: ${userId}`);
+      logger.info(
+        `[UserLevelService] Getting user level for user ID: ${userId} ${bypassCache ? '(Bypassing Cache)' : ''}`
+      );
 
-      // Check cache first
-      const cachedLevel = this.userLevelCache.get(userId);
-      if (cachedLevel) {
-        logger.info(
-          `[UserLevelService] Found cached level for user ${userId}: ${cachedLevel.level}`
-        );
-        return cachedLevel;
+      // Check cache first unless bypassed
+      if (!bypassCache) {
+        const cachedLevel = this.userLevelCache.get(userId);
+        if (cachedLevel) {
+          logger.info(
+            `[UserLevelService] Found cached level for user ${userId}: ${cachedLevel.level}`
+          );
+          return cachedLevel;
+        }
       }
 
       // Get the Supabase service
@@ -143,18 +148,17 @@ export class UserLevelService extends Service {
    * @returns Array of level requirements with full configuration
    */
   async getLevelRequirements(level: number): Promise<LevelRequirements[]> {
-    try {
-      // Add detailed logging to see the exact structure of the level parameter
-      logger.info(`[UserLevelService] getLevelRequirements called with level:`, {
-        level,
-        type: typeof level,
-        isObject: level !== null && typeof level === 'object',
-        stringified: JSON.stringify(level),
-        toString: level.toString(),
-        valueOf: level.valueOf(),
-      });
+    // Validate and convert level input immediately
+    const numericLevel = Number(level);
+    if (isNaN(numericLevel)) {
+      logger.error(
+        `[UserLevelService] Invalid level type passed to getLevelRequirements. Received: ${level} (type: ${typeof level})`
+      );
+      return [];
+    }
 
-      logger.info(`[UserLevelService] Getting requirements for level ${level}`);
+    try {
+      logger.info(`[UserLevelService] Getting requirements for level ${numericLevel}`);
 
       // Get the Supabase service
       const supabaseService = this.runtime.getService('supabase') as SupabaseService;
@@ -164,32 +168,38 @@ export class UserLevelService extends Service {
       }
 
       // Use the getLevelRequirements method from SupabaseService
-      const { data, error } = await supabaseService.getLevelRequirements(level);
+      const { data, error } = await supabaseService.getLevelRequirements(numericLevel);
 
       if (error) {
-        logger.error(`[UserLevelService] Error getting level requirements: ${error.message}`);
+        // Log only the error message safely
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(
+          `[UserLevelService] Error getting level requirements from Supabase: ${errorMessage}`
+        );
         return [];
       }
 
       if (!data) {
-        logger.info(`[UserLevelService] No requirements found for level ${level}`);
+        logger.info(`[UserLevelService] No requirements data found for level ${numericLevel}`);
         return [];
       }
 
-      // Convert created_at strings to Date objects
-      const requirements = data.map((req) => ({
+      // Convert created_at strings to Date objects safely
+      const requirements = data.map((req: any) => ({
         ...req,
-        created_at: new Date(req.created_at),
+        created_at: req.created_at ? new Date(req.created_at) : new Date(), // Provide default date if null/undefined
       }));
 
+      // Log only the count safely
       logger.info(
-        `[UserLevelService] Successfully retrieved ${requirements.length} requirements for level ${level}`
+        `[UserLevelService] Successfully retrieved ${requirements.length} requirements for level ${numericLevel}`
       );
       return requirements;
     } catch (error) {
+      // Log only the error message safely in the catch block
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(
-        `[UserLevelService] Error getting level requirements for level ${level}:`,
-        error
+        `[UserLevelService] Unexpected error in getLevelRequirements for level ${numericLevel}: ${errorMessage}`
       );
       return [];
     }
@@ -491,7 +501,7 @@ export class UserLevelService extends Service {
   private getMetricDescription(metric: string): string {
     const descriptions: Record<string, string> = {
       nft_idea_minted: 'Mint Idea NFT',
-      nft_hypothesis_minted: 'Mint Hypothesis NFT',
+      nft_Vision_minted: 'Mint Vision NFT',
       discord_created: 'Create Discord Server',
       discord_members: 'Discord Members',
       papers_shared: 'Scientific Papers Shared',

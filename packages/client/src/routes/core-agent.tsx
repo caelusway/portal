@@ -17,10 +17,13 @@ import { useWelcomeForm } from '@/lib/welcome-form-context';
 
 // Define level requirements (could be moved to a shared constants file)
 const LEVELS = {
-  1: { label: "App Started", requirements: ["Wallet connected"] },
-  2: { label: "Science NFTs Minted", requirements: ["Minted Idea NFT", "Minted Hypothesis NFT"] },
-  3: { label: "Community Initiated", requirements: ["Discord created", "4 Discord members"] },
-  4: { label: "Community Growth + Proof", requirements: ["10 Discord members", "25 papers shared", "100 messages sent"] },
+  1: { label: 'App Started', requirements: ['Wallet connected'] },
+  2: { label: 'Science NFTs Minted', requirements: ['Minted Idea NFT', 'Minted Vision NFT'] },
+  3: { label: 'Community Initiated', requirements: ['Discord created', '4 Discord members'] },
+  4: {
+    label: 'Community Growth + Proof',
+    requirements: ['10 Discord members', '25 papers shared', '100 messages sent'],
+  },
 };
 
 export default function CoreAgentRoute() {
@@ -71,7 +74,9 @@ export default function CoreAgentRoute() {
         }
       } else if (level < 1) {
         // Handle case where level might be 0 or invalid
-        setInitialMessage(`Hello! It looks like there might be an issue with your progress level. Please contact support or try refreshing.`);
+        setInitialMessage(
+          `Hello! It looks like there might be an issue with your progress level. Please contact support or try refreshing.`
+        );
       } else {
         // Fallback if level is 1 but formData isn't ready (should be rare if formLoading is false)
         setInitialMessage(`Hello, I'm ${agent.name}. Getting your project details...`);

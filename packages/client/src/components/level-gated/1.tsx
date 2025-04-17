@@ -18,28 +18,30 @@ const scienceNFTs = [
     name: 'Research Hypothesis',
     description: 'The core scientific hypothesis that forms the foundation of your research.',
     type: 'research' as const,
-    imageUrl: 'https://via.placeholder.com/300/8bff2a/FFFFFF?text=Hypothesis'
+    imageUrl: 'https://via.placeholder.com/300/8bff2a/FFFFFF?text=Hypothesis',
   },
   {
     id: 'science-nft-2',
     name: 'Methodology Design',
     description: 'The experimental approach and methodologies used in your research.',
     type: 'research' as const,
-    imageUrl: 'https://via.placeholder.com/300/8bff2a/FFFFFF?text=Methodology'
+    imageUrl: 'https://via.placeholder.com/300/8bff2a/FFFFFF?text=Methodology',
   },
   {
     id: 'science-nft-3',
     name: 'Theoretical Model',
     description: 'The theoretical framework that supports your scientific inquiry.',
     type: 'vision' as const,
-    imageUrl: 'https://via.placeholder.com/300/8bff2a/FFFFFF?text=Theory'
-  }
+    imageUrl: 'https://via.placeholder.com/300/8bff2a/FFFFFF?text=Theory',
+  },
 ];
 
 export function Level1NFTGallery() {
   const { user } = useAuth();
   const { markRequirementComplete, requirements } = useLevelRequirements();
-  const [mintedNFTs, setMintedNFTs] = useState<Record<string, { tokenId?: string, txHash: string }>>({});
+  const [mintedNFTs, setMintedNFTs] = useState<
+    Record<string, { tokenId?: string; txHash: string }>
+  >({});
   const [isCompleted, setIsCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,19 +49,19 @@ export function Level1NFTGallery() {
   useEffect(() => {
     const checkExistingMintedNFTs = async () => {
       if (!user?.id) return;
-      
+
       setIsLoading(true);
-      
+
       try {
         // In a real implementation, you would fetch existing tokens from your backend
         // or use a blockchain indexer to check if this user has minted NFTs from your contract
-        
+
         // For now, we'll simulate this check with a timeout
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
         // Mock already minted NFTs (in a real app, you'd query your database or the blockchain)
-        const existingMinted: Record<string, { tokenId?: string, txHash: string }> = {};
-        
+        const existingMinted: Record<string, { tokenId?: string; txHash: string }> = {};
+
         // Typically you would check locally stored NFTs or query a subgraph/indexer
         // For mock purposes, we'll check localStorage to simulate persisting mint state
         try {
@@ -71,7 +73,7 @@ export function Level1NFTGallery() {
         } catch (e) {
           console.error('Error reading from localStorage:', e);
         }
-        
+
         // Update state with any existing minted NFTs
         if (Object.keys(existingMinted).length > 0) {
           setMintedNFTs(existingMinted);
@@ -82,13 +84,15 @@ export function Level1NFTGallery() {
         setIsLoading(false);
       }
     };
-    
+
     checkExistingMintedNFTs();
   }, [user?.id]);
 
   // Check if requirement is already completed when component mounts
   useEffect(() => {
-    const requirementCompleted = requirements?.find(r => r.requirement.includes('Mint 3 Science NFTs'))?.completed;
+    const requirementCompleted = requirements?.find((r) =>
+      r.requirement.includes('Mint 3 Science NFTs')
+    )?.completed;
     if (requirementCompleted) {
       setIsCompleted(true);
     }
@@ -98,17 +102,17 @@ export function Level1NFTGallery() {
   useEffect(() => {
     const checkAllMinted = async () => {
       if (!user?.id) return;
-      
+
       // Count minted NFTs
       const mintedCount = Object.keys(mintedNFTs).length;
-      
+
       // Store minted NFTs in localStorage to simulate persistence
       try {
         localStorage.setItem(`minted-nfts-${user.id}`, JSON.stringify(mintedNFTs));
       } catch (e) {
         console.error('Error storing in localStorage:', e);
       }
-      
+
       // Check if all 3 NFTs are minted and requirement isn't already completed
       if (mintedCount === 3 && !isCompleted) {
         console.log('All 3 NFTs minted, marking requirement as complete');
@@ -120,18 +124,21 @@ export function Level1NFTGallery() {
         }
       }
     };
-    
+
     checkAllMinted();
   }, [mintedNFTs, user?.id, markRequirementComplete, isCompleted]);
 
-  const handleMintSuccess = (nftId: string, data: { transactionHash: string; tokenId?: string }) => {
+  const handleMintSuccess = (
+    nftId: string,
+    data: { transactionHash: string; tokenId?: string }
+  ) => {
     // Update the mintedNFTs state with the new NFT
-    setMintedNFTs(prev => ({
+    setMintedNFTs((prev) => ({
       ...prev,
       [nftId]: {
         tokenId: data.tokenId,
-        txHash: data.transactionHash
-      }
+        txHash: data.transactionHash,
+      },
     }));
   };
 
@@ -147,25 +154,24 @@ export function Level1NFTGallery() {
         </p>
         <div className="mt-2 text-xs text-muted-foreground">
           <span>Contract: </span>
-          <a 
+          <a
             href={`https://sepolia.basescan.org/address/${NFT_CONTRACT_ADDRESS}`}
             target="_blank"
             rel="noopener noreferrer"
             className="underline hover:text-primary"
           >
-            {NFT_CONTRACT_ADDRESS.substring(0, 6)}...{NFT_CONTRACT_ADDRESS.substring(NFT_CONTRACT_ADDRESS.length - 4)}
+            {NFT_CONTRACT_ADDRESS.substring(0, 6)}...
+            {NFT_CONTRACT_ADDRESS.substring(NFT_CONTRACT_ADDRESS.length - 4)}
           </a>
           <span> (Base Sepolia)</span>
         </div>
       </div>
-      
+
       <div className="flex items-center justify-between">
         <h3 className="text-xl font-semibold">Mint Your Science NFTs</h3>
-        <Badge variant={mintedCount === 3 ? "default" : "outline"}>
-          {mintedCount}/3 Minted
-        </Badge>
+        <Badge variant={mintedCount === 3 ? 'default' : 'outline'}>{mintedCount}/3 Minted</Badge>
       </div>
-      
+
       {isLoading ? (
         <div className="space-y-4">
           <div className="h-[300px] w-full flex flex-col items-center justify-center">
@@ -178,13 +184,13 @@ export function Level1NFTGallery() {
           {scienceNFTs.map((nft) => {
             const isMinted = nft.id in mintedNFTs;
             const mintedData = mintedNFTs[nft.id];
-            
+
             return (
-              <Card key={nft.id} className={isMinted ? "border-green-500" : ""}>
+              <Card key={nft.id} className={isMinted ? 'border-green-500' : ''}>
                 <div className="relative">
-                  <img 
-                    src={nft.imageUrl} 
-                    alt={nft.name} 
+                  <img
+                    src={nft.imageUrl}
+                    alt={nft.name}
                     className="w-full h-40 object-cover rounded-t-lg"
                   />
                   {isMinted && (
@@ -203,7 +209,7 @@ export function Level1NFTGallery() {
                 </CardHeader>
                 <CardContent>
                   <CardDescription className="mb-4">{nft.description}</CardDescription>
-                  
+
                   {isMinted && mintedData && (
                     <div className="mt-2 mb-4 text-xs text-muted-foreground space-y-1">
                       {mintedData.tokenId && (
@@ -214,9 +220,9 @@ export function Level1NFTGallery() {
                       )}
                       <div className="flex items-center">
                         <span className="font-medium mr-1">Tx:</span>
-                        <a 
+                        <a
                           href={`https://sepolia.basescan.org/tx/${mintedData.txHash}`}
-                          target="_blank" 
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline truncate max-w-[150px]"
                         >
@@ -225,14 +231,14 @@ export function Level1NFTGallery() {
                       </div>
                     </div>
                   )}
-                  
+
                   <ZoraMintButton
                     fullWidth
                     mintType="1155"
                     nftName={nft.name}
                     comment={`${nft.name} - ${nft.type} NFT for BioDAO`}
                     onMintSuccess={(data) => handleMintSuccess(nft.id, data)}
-                    variant={isMinted ? "outline" : "default"}
+                    variant={isMinted ? 'outline' : 'default'}
                     size="sm"
                     disabled={isMinted}
                   />
@@ -242,19 +248,17 @@ export function Level1NFTGallery() {
           })}
         </div>
       )}
-      
+
       {allMinted && (
         <div className="p-4 bg-green-100 border border-green-300 rounded-lg text-green-800">
           <h3 className="font-medium flex items-center">
             <CheckCircle className="h-5 w-5 mr-2" />
             Congratulations!
           </h3>
-          <p className="mt-1">
-            You've minted all 3 Science NFTs! You've now unlocked Level 2.
-          </p>
+          <p className="mt-1">You've minted all 3 Science NFTs! You've now unlocked Level 2.</p>
         </div>
       )}
-      
+
       <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
         <div className="flex items-center">
           <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mr-3">
@@ -269,15 +273,13 @@ export function Level1NFTGallery() {
               {isCompleted || allMinted ? 'Level 2 Unlocked!' : 'Level 2 Locked'}
             </h3>
             <p className="text-sm text-muted-foreground">
-              {isCompleted || allMinted 
-                ? 'You can now access Level 2: Community Builder' 
+              {isCompleted || allMinted
+                ? 'You can now access Level 2: Community Builder'
                 : `Mint ${3 - mintedCount} more NFTs to unlock Community Builder level`}
             </p>
           </div>
         </div>
-        <div className="text-sm text-muted-foreground">
-          {mintedCount}/3 minted
-        </div>
+        <div className="text-sm text-muted-foreground">{mintedCount}/3 minted</div>
       </div>
     </div>
   );

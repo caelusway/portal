@@ -30,14 +30,22 @@ import { useWallets, type ConnectedWallet } from '@privy-io/react-auth';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
 import { ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { mintIdeaAndVisionNFTs } from '@/lib/nft-actions';
+import {
+  mintIdeaAndVisionNFTs,
+  ZORA_CONTRACT_ADDRESS,
+  IDEA_NFT_ID,
+  VISION_NFT_ID,
+  publicClient,
+} from '@/lib/nft-actions';
 import { baseSepolia } from 'viem/chains';
 import type { Hex } from 'viem';
 import { useUserLevel } from '@/hooks/use-user-level';
+import { updateRequirementProgress } from '@/lib/api/user-levels';
+import { readContract } from 'viem/actions';
 
 const LEVELS = {
   1: { label: 'App Started', requirements: ['Wallet connected'] },
-  2: { label: 'Science NFTs Minted', requirements: ['Minted Idea NFT', 'Minted Hypothesis NFT'] },
+  2: { label: 'Science NFTs Minted', requirements: ['Minted Idea NFT', 'Minted Vision NFT'] },
   3: { label: 'Community Initiated', requirements: ['Discord created', '4 Discord members'] },
   4: {
     label: 'Community Growth + Proof',
@@ -171,6 +179,20 @@ function MessageContent({
   );
 }
 
+// Minimal ABI for ERC1155 balanceOf
+const erc1155BalanceOfAbi = [
+  {
+    inputs: [
+      { internalType: 'address', name: 'account', type: 'address' },
+      { internalType: 'uint256', name: 'id', type: 'uint256' },
+    ],
+    name: 'balanceOf',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
 export function CoreAgentChat({
   agentId,
   worldId,
@@ -266,16 +288,14 @@ export function CoreAgentChat({
   );
 
   const triggerMintingProcess = useCallback(async () => {
-    console.log('[triggerMintingProcess] Starting minting process...', level);
+    console.log('[triggerMintingProcess] Starting minting process check...', { level });
     if (level !== 1) {
-      console.warn(
-        `[triggerMintingProcess] Aborting mint attempt because user level is ${level}, not 1.`
-      );
+      console.warn(`[triggerMintingProcess] Aborting: User level is ${level}, not 1.`);
       return;
     }
 
     if (isMinting) {
-      console.warn('[triggerMintingProcess] Minting already in progress.');
+      console.warn('[triggerMintingProcess] Aborting: Minting already in progress.');
       return;
     }
 
@@ -287,13 +307,44 @@ export function CoreAgentChat({
       const errorMsg =
         'Your embedded wallet could not be found. Please try logging out and back in.';
       toast({ title: 'Wallet Not Found', description: errorMsg, variant: 'destructive' });
-      addAgentMessage(`Minting failed: ${errorMsg}`);
-      socketIOManager.sendMessage(
-        JSON.stringify({ type: 'user_mint_failure', error: 'Embedded wallet not found' }),
-        roomId,
-        CHAT_SOURCE,
-        { userId }
+      addAgentMessage(`Minting check failed: ${errorMsg}`);
+      return;
+    }
+
+    try {
+      console.log(
+        `[triggerMintingProcess] Checking balances for wallet: ${embeddedWallet.address}`
       );
+      const ideaBalance = await readContract(publicClient, {
+        address: ZORA_CONTRACT_ADDRESS,
+        abi: erc1155BalanceOfAbi,
+        functionName: 'balanceOf',
+        args: [embeddedWallet.address as Hex, IDEA_NFT_ID],
+      });
+
+      const visionBalance = await readContract(publicClient, {
+        address: ZORA_CONTRACT_ADDRESS,
+        abi: erc1155BalanceOfAbi,
+        functionName: 'balanceOf',
+        args: [embeddedWallet.address as Hex, VISION_NFT_ID],
+      });
+
+      console.log('[triggerMintingProcess] NFT Balances:', { ideaBalance, visionBalance });
+
+      if (ideaBalance > 0n && visionBalance > 0n) {
+        console.warn(
+          '[triggerMintingProcess] Aborting: User already owns both Idea and Vision NFTs.'
+        );
+        return;
+      }
+    } catch (balanceError) {
+      console.error('[triggerMintingProcess] Error checking NFT balances:', balanceError);
+      toast({
+        title: 'NFT Check Failed',
+        description: 'Could not verify your existing NFTs. Please try again.',
+        variant: 'destructive',
+      });
+      addAgentMessage('Minting check failed: Could not verify your existing NFTs.');
       return;
     }
 
@@ -343,6 +394,42 @@ Next step (Level 3): ${nextLevelInfo.label}.
 Requirements: ${requirementsText}.`);
 
       refetchLevel();
+
+      // --> Update requirement progress on backend <--
+      try {
+        console.log(`[CoreAgentChat] Updating requirement progress for user ${userId}...`);
+        // Requirements for reaching Level 2 are marked as completed here
+        const ideaResult = await updateRequirementProgress(userId, 1, 'mint_idea_nft', true);
+        const visionResult = await updateRequirementProgress(userId, 1, 'mint_vision_nft', true);
+
+        if (!ideaResult.success || !visionResult.success) {
+          console.error(
+            '[CoreAgentChat] Failed to update one or both requirement progress entries.',
+            { ideaResult, visionResult }
+          );
+          // Optionally show a toast to the user if this fails, although it's a background task
+          toast({
+            title: 'Progress Update Issue',
+            description: 'Could not update all progress milestones.',
+            variant: 'destructive',
+          });
+        } else {
+          console.log(
+            `[CoreAgentChat] Successfully updated requirement progress for mint_idea_nft and mint_vision_nft (Level 2).`
+          ); // Updated log
+        }
+      } catch (progressError) {
+        console.error(
+          '[CoreAgentChat] Unexpected error updating requirement progress:',
+          progressError
+        );
+        toast({
+          title: 'Progress Update Error',
+          description: 'An unexpected error occurred while updating progress.',
+          variant: 'destructive',
+        });
+      }
+      // --> End Update requirement progress <--
     } catch (error: any) {
       const errorMsg = error.message || 'An unknown error occurred during minting.';
       console.error('[triggerMintingProcess] Minting failed:', error);
@@ -379,6 +466,7 @@ Requirements: ${requirementsText}.`);
   ]);
 
   useEffect(() => {
+    refetchLevel();
     const embeddedWallet = wallets.find(
       (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
     );
@@ -386,9 +474,8 @@ Requirements: ${requirementsText}.`);
     if (!levelLoading && level === 1 && !isMinting && !mintingAttempted && embeddedWallet) {
       console.log('[CoreAgentChat] Conditions met for automatic minting (Level 1 detected).');
       setMintingAttempted(true);
-      setTimeout(() => {
-        triggerMintingProcess();
-      }, 500);
+
+      triggerMintingProcess();
     }
   }, [level, levelLoading, wallets, isMinting, mintingAttempted, triggerMintingProcess]);
 

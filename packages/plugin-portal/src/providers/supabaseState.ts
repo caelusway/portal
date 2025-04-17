@@ -1,6 +1,7 @@
 import type { IAgentRuntime, Memory, Provider, State } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 import { UserLevelService } from '../services/user-level-service';
+import { getAllowedActionsForLevel } from '../config/level-actions';
 
 /**
  * Represents a provider for retrieving Supabase state information.
@@ -38,8 +39,8 @@ export const supabaseStateProvider: Provider = {
     }
 
     try {
-      // Get the user's current level
-      const userLevel = await userLevelService.getUserLevel(userId);
+      // Get the user's current level, bypassing the cache
+      const userLevel = await userLevelService.getUserLevel(userId, true);
 
       if (userLevel === null) {
         return {
@@ -55,41 +56,52 @@ export const supabaseStateProvider: Provider = {
         };
       }
 
+      // Get the allowed actions for the current level
+      const allowedActions = getAllowedActionsForLevel(userLevel.level);
+
       // Get the level requirements for the next level
-      const nextLevel = userLevel + 1;
+      const nextLevel = 1;
       const levelRequirements = await userLevelService.getLevelRequirements(nextLevel);
 
       // Check which requirements are completed
       const completedRequirements = await userLevelService.checkRequirements(userId, nextLevel);
 
       // Format the response text
-      let responseText = `User ${userId} is currently at level ${userLevel}.`;
+      let responseText = `User ${userId} is currently at level ${userLevel.level}.`;
 
       if (levelRequirements.length > 0) {
         responseText += ` To reach level ${nextLevel}, the following requirements must be met:`;
 
         levelRequirements.forEach((req) => {
-          const isCompleted = completedRequirements.includes(req.id);
+          // Check if there's a matching completed requirement object
+          const isCompleted = completedRequirements.some(
+            (comp) => comp.requirement_id === req.id && comp.completed
+          );
           responseText += `\n- ${req.description} (${isCompleted ? 'Completed' : 'Not completed'})`;
         });
       } else {
         responseText += ` This is the maximum level.`;
       }
 
+      // Add allowed actions info
+      responseText += `\n\nAvailable actions at your current level: ${allowedActions.join(', ')}.`;
+
       return {
         data: {
           userId,
-          userLevel,
+          userLevel: userLevel.level,
           nextLevel,
           levelRequirements,
           completedRequirements,
+          allowedActions,
         },
         values: {
           userId,
-          userLevel,
+          userLevel: userLevel.level,
           nextLevel,
           levelRequirementsCount: levelRequirements.length,
           completedRequirementsCount: completedRequirements.length,
+          allowedActions,
         },
         text: responseText,
       };

@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../lib/use-auth';
-import { updateUserLevel, incrementUserLevel, getUserLevel, createDefaultUserLevel, createOrUpdateUserLevel } from '../lib/api/user-levels';
+import {
+  updateUserLevel,
+  incrementUserLevel,
+  getUserLevel,
+  createDefaultUserLevel,
+  createOrUpdateUserLevel,
+} from '../lib/api/user-levels';
 import { supabase } from '../lib/supabase-client';
 
 interface UserLevel {
@@ -19,23 +25,42 @@ export function useUserLevel() {
     if (!privyId) {
       setIsLoading(false);
       setLevel(1);
+      setError(null);
       return;
     }
 
     setIsLoading(true);
     setError(null);
+    let userLevelData: UserLevel | null = null;
+
     try {
-      const userLevelData = await getUserLevel(privyId);
+      console.log(`[useUserLevel] Attempting to fetch level for ${privyId}...`);
+      userLevelData = await getUserLevel(privyId);
+
       if (userLevelData && typeof userLevelData.level === 'number') {
+        console.log(`[useUserLevel] Level ${userLevelData.level} found for ${privyId}.`);
         setLevel(userLevelData.level);
       } else {
-        console.log(`No level data found for ${privyId}, attempting to ensure level 1 record exists.`);
-        setLevel(1);
-        createOrUpdateUserLevel(privyId).catch(err => console.error("Error ensuring level 1 record:", err));
+        console.log(
+          `[useUserLevel] No valid level data returned for ${privyId} from initial fetch.`
+        );
+        console.log(`[useUserLevel] Attempting createOrUpdateUserLevel for ${privyId}...`);
+        const createdLevelData = await createOrUpdateUserLevel(privyId);
+
+        if (createdLevelData && typeof createdLevelData.level === 'number') {
+          console.log(
+            `[useUserLevel] Ensured level ${createdLevelData.level} exists for ${privyId}.`
+          );
+          setLevel(createdLevelData.level);
+        } else {
+          console.error(`[useUserLevel] Failed to create/ensure level 1 record for ${privyId}.`);
+          setError('Failed to initialize user level.');
+          setLevel(1);
+        }
       }
     } catch (err: any) {
-      console.error("Error fetching user level:", err);
-      setError(err.message || 'Failed to fetch user level');
+      console.error(`[useUserLevel] Error during level fetch/create for ${privyId}:`, err);
+      setError(err.message || 'Failed to fetch or initialize user level');
       setLevel(1);
     } finally {
       setIsLoading(false);
@@ -48,8 +73,8 @@ export function useUserLevel() {
 
   const incrementLevel = useCallback(async () => {
     if (!privyId) {
-      console.error("Cannot increment level without privyId.");
-      throw new Error("User not authenticated");
+      console.error('Cannot increment level without privyId.');
+      throw new Error('User not authenticated');
     }
 
     const currentLevel = level;
@@ -61,7 +86,7 @@ export function useUserLevel() {
     try {
       const { success, error: updateError } = await updateUserLevel(privyId, nextLevel);
       if (!success) {
-        console.error("Failed to update level on backend:", updateError);
+        console.error('Failed to update level on backend:', updateError);
         setLevel(currentLevel);
         setError(updateError?.message || 'Failed to update level');
         throw updateError || new Error('Failed to update level');
@@ -71,7 +96,9 @@ export function useUserLevel() {
       if (level !== currentLevel) {
         setLevel(currentLevel);
       }
-      setError(err instanceof Error ? err.message : 'An unknown error occurred during level update');
+      setError(
+        err instanceof Error ? err.message : 'An unknown error occurred during level update'
+      );
       throw err;
     }
   }, [privyId, level]);

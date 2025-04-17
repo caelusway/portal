@@ -12,13 +12,13 @@ import { mint as zoraMint } from '@zoralabs/protocol-sdk';
 import type { ConnectedWallet } from '@privy-io/react-auth';
 
 // Constants
-const ZORA_CONTRACT_ADDRESS = '0x1560aEc2263d8979F24Aa0a260bF11f55E458473' as const; // From deploy.ts
+export const ZORA_CONTRACT_ADDRESS = '0x1560aEc2263d8979F24Aa0a260bF11f55E458473' as const; // From deploy.ts
 const CHAIN = baseSepolia;
-const IDEA_NFT_ID = 1n;
-const VISION_NFT_ID = 1n;
+export const IDEA_NFT_ID = 1n; // Exporting for use in checks
+export const VISION_NFT_ID = 1n; // <<< ASSUMING VISION IS TOKEN ID 2 >>> Exporting for use in checks. PLEASE VERIFY THIS ID.
 
 // Helper Public Client (explicitly typed)
-const publicClient = createPublicClient({
+export const publicClient = createPublicClient({
   chain: CHAIN,
   transport: http(),
 });
