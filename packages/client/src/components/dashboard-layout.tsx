@@ -12,6 +12,7 @@ import { Button } from './ui/button';
 import { LevelRequirementsPanel } from './level-requirements-panel';
 import { agentLevels } from '../config/agent-levels';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
+import { useUserLevel } from '../hooks/use-user-level';
 
 // Level 1 - Inception Stage: Science NFT Minting
 
@@ -350,19 +351,26 @@ function DiscordTutorialVideo() {
 }
 
 export function DashboardLayout() {
-  const { level, isLoading } = useUserLevelContext();
+  const { level, isLoading: levelLoading, refetchLevel } = useUserLevel();
   const { requirements } = useLevelRequirements();
+  const [userLevel, setUserLevel] = useState<number | null>(null);
 
   // UI state
   const [activeTab, setActiveTab] = useState('progress');
 
-  // Only set userLevel when we have the actual data
-  const userLevel = !isLoading && level !== null ? level : null;
+  useEffect(() => {
+    refetchLevel();
+    setUserLevel(level);
+  }, [level]);
+
+  console.log('[DashboardLayout] Current level:', level, 'isLoading:', levelLoading);
+  console.log('[DashboardLayout] Current level:', level, 'isLoading:', levelLoading);
+  console.log('[DashboardLayout] User level:', userLevel);
 
   // Log the current level for debugging purposes
   useEffect(() => {
-    console.log('[DashboardLayout] Current level:', level, 'isLoading:', isLoading);
-  }, [level, isLoading]);
+    console.log('[DashboardLayout] Current level:', level, 'isLoading:', levelLoading);
+  }, [level, levelLoading]);
 
   // Sample metrics data - in a real implementation, this would come from your API/database
   const metricsData = {
@@ -430,7 +438,7 @@ export function DashboardLayout() {
   );
 
   const renderProgressContent = () => {
-    if (isLoading || userLevel === null) {
+    if (levelLoading || userLevel === null) {
       return (
         <div className="space-y-6">
           <h2 className="text-xl font-semibold">Level Progress</h2>
@@ -460,7 +468,7 @@ export function DashboardLayout() {
   };
 
   const renderMetricsContent = () => {
-    if (isLoading || userLevel === null) {
+    if (levelLoading || userLevel === null) {
       return renderSkeletonMetrics();
     }
 

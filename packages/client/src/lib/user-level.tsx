@@ -29,10 +29,12 @@ export function UserLevelProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setError(null);
     try {
+      // Only call createOrUpdateUserLevel if getUserLevel returns null (no record)
       let userLevelData = await getUserLevel(privyId);
       if (userLevelData && typeof userLevelData.level === 'number') {
         setLevel(userLevelData.level);
-      } else {
+      } else if (userLevelData === null) {
+        // No record exists, so create one with level 1
         const createdLevelData = await createOrUpdateUserLevel(privyId);
         if (createdLevelData && typeof createdLevelData.level === 'number') {
           setLevel(createdLevelData.level);
@@ -40,6 +42,11 @@ export function UserLevelProvider({ children }: { children: React.ReactNode }) {
           setError('Failed to initialize user level.');
           setLevel(1);
         }
+      } else {
+        // Record exists but is malformed; do not overwrite, just log
+        setError('User level record has unexpected structure.');
+        setLevel(1);
+        console.warn('Fetched user level data has unexpected structure:', userLevelData);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to fetch or initialize user level');

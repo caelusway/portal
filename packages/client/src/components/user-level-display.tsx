@@ -5,9 +5,9 @@ import { useAuth } from '../lib/use-auth';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Crown, Star } from 'lucide-react';
-
+import { useUserLevel } from '../hooks/use-user-level';
 export function UserLevelDisplay() {
-  const { level, isLoading, error } = useUserLevelContext();
+  const { level, isLoading, error } = useUserLevel();
   const { user } = useAuth();
 
   if (isLoading) {

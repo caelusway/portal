@@ -63,7 +63,9 @@ export async function getUserLevel(privyId: string): Promise<UserLevel | null> {
       .from('user_levels')
       .select('*') // Select all known columns
       .eq('privy_id', privyId)
-      .maybeSingle();
+      .single();
+
+    console.log('[getUserLevel] Data:', data);
 
     if (error) {
       console.error(`Error fetching user level for ${privyId}:`, error);

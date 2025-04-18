@@ -8,13 +8,14 @@ import { useLevelRequirements } from '../hooks/use-level-requirements';
 import { agentLevels } from '../config/agent-levels';
 import { Badge } from './ui/badge';
 import { CheckCircle, ArrowRight, Clipboard, Activity } from 'lucide-react';
+import { useUserLevel } from '../hooks/use-user-level';
 
 interface LevelProgressProps {
   isDemo?: boolean;
 }
 
 export function LevelProgress({ isDemo = false }: LevelProgressProps) {
-  const { level, incrementLevel } = useUserLevelContext();
+  const { level, incrementLevel } = useUserLevel();
   const { requirements, markRequirementComplete } = useLevelRequirements();
   const [activeModule, setActiveModule] = useState<string | null>(null);
   const [metrics, setMetrics] = useState({

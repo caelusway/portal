@@ -11,11 +11,11 @@ import { agentLevels } from '../../config/agent-levels';
 import bioLogo from '/biolightlogo.png';
 import { Badge } from '../ui/badge';
 import { CheckCircle } from 'lucide-react';
-
+import { useUserLevel } from '../../hooks/use-user-level';
 export function LevelSpecificChat() {
   const { agentId } = useParams<{ agentId: string }>();
   const { user, supabaseUserId } = useAuth();
-  const { level, isLoading: levelLoading } = useUserLevelContext();
+  const { level, isLoading: levelLoading } = useUserLevel();
   const { isFormSubmitted, formData } = useWelcomeForm();
   const { requirements } = useLevelRequirements();
   const [initialMessage, setInitialMessage] = useState<string | null>(null);

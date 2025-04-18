@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { CheckCircle, Lock, Star, Crown, AlertCircle } from 'lucide-react';
 import { agentLevels } from '../config/agent-levels';
 import { useLevelRequirements } from '../hooks/use-level-requirements';
+import { useUserLevel } from '../hooks/use-user-level';
 
 export function LevelRequirementsPanel() {
-  const { level, isLoading: levelLoading } = useUserLevelContext();
+  const { level, isLoading: levelLoading } = useUserLevel();
   const { requirements, isLoading: requirementsLoading } = useLevelRequirements();
 
   const userLevel = level || 1;

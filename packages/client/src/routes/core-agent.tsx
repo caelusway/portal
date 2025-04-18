@@ -14,7 +14,7 @@ import { getEntityId } from '../lib/utils';
 import clientLogger from '../lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import { useWelcomeForm } from '@/lib/welcome-form-context';
-
+import { useUserLevel } from '../hooks/use-user-level';
 // Define level requirements (could be moved to a shared constants file)
 const LEVELS = {
   1: { label: 'App Started', requirements: ['Wallet connected'] },
@@ -33,7 +33,7 @@ export default function CoreAgentRoute() {
   const [showDetails, setShowDetails] = useState(false);
   const worldId = WorldManager.getWorldId();
   const { user } = useAuth();
-  const { level, isLoading: levelLoading } = useUserLevelContext();
+  const { level, isLoading: levelLoading } = useUserLevel();
   const { formData, isLoading: formLoading } = useWelcomeForm();
   const { agentId } = useParams<{ agentId: UUID }>();
   const { data: agentData } = useAgent(agentId);

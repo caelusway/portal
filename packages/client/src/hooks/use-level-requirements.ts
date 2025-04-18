@@ -6,11 +6,11 @@ import {
   RequirementProgress,
 } from '../lib/api/level-requirements';
 import { checkAndProcessLevelUp } from '../lib/level-eligibility';
-import { useUserLevelContext } from '../lib/user-level.tsx';
+import { useUserLevel } from './use-user-level';
 
 export function useLevelRequirements() {
   const { user } = useAuth();
-  const { level, isLoading: isLevelLoading } = useUserLevelContext();
+  const { level, isLoading: isLevelLoading } = useUserLevel();
   const [requirements, setRequirements] = useState<RequirementProgress[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
