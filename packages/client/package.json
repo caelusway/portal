@@ -55,6 +55,7 @@
     "evt": "^2.5.9",
     "jose": "^6.0.10",
     "lucide-react": "^0.469.0",
+    "permissionless": "^0.2.42",
     "posthog-js": "^1.235.6",
     "react": "^19.0.0",
     "react-aiwriter": "^1.0.0",
@@ -67,6 +68,7 @@
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "viem": "^2.27.2",
     "vite-plugin-compression": "^0.5.1",
     "zod": "^3.24.1"
   },

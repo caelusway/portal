@@ -1,18 +1,18 @@
 'use client';
 
-import { useUserLevel } from '../hooks/use-user-level';
+import { useUserLevelContext } from '../lib/user-level.tsx';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { CheckCircle, Lock, Star, Crown, AlertCircle } from 'lucide-react';
 import { agentLevels } from '../config/agent-levels';
 import { useLevelRequirements } from '../hooks/use-level-requirements';
 
 export function LevelRequirementsPanel() {
-  const { level, isLoading: levelLoading } = useUserLevel();
+  const { level, isLoading: levelLoading } = useUserLevelContext();
   const { requirements, isLoading: requirementsLoading } = useLevelRequirements();
-  
+
   const userLevel = level || 1;
   const isLoading = levelLoading || requirementsLoading;
-  
+
   if (isLoading) {
     return (
       <Card className="w-full bg-card mb-6">
@@ -20,14 +20,14 @@ export function LevelRequirementsPanel() {
           <CardTitle className="text-lg">Level Requirements</CardTitle>
         </CardHeader>
         <CardContent className="animate-pulse space-y-4">
-          {[1, 2, 3, 4].map(i => (
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-24 bg-muted rounded"></div>
           ))}
         </CardContent>
       </Card>
     );
   }
-  
+
   // Get current and next level data
   const currentLevelData = agentLevels[userLevel];
   const nextLevelData = userLevel < 4 ? agentLevels[userLevel + 1] : null;
@@ -44,21 +44,20 @@ export function LevelRequirementsPanel() {
         <div className="mb-6">
           <div className="flex items-center mb-3">
             <div className={`p-2 rounded-full mr-3 ${getLevelIconClass(userLevel)}`}>
-              {userLevel < 4 
-                ? <Star className={`h-4 w-4 ${getLevelIconColor(userLevel)}`} /> 
-                : <Crown className="h-4 w-4 text-amber-500" />
-              }
+              {userLevel < 4 ? (
+                <Star className={`h-4 w-4 ${getLevelIconColor(userLevel)}`} />
+              ) : (
+                <Crown className="h-4 w-4 text-amber-500" />
+              )}
             </div>
             <div>
               <div className="font-medium">
                 Current: Level {userLevel} - {currentLevelData.name}
               </div>
-              <div className="text-xs text-muted-foreground">
-                {currentLevelData.description}
-              </div>
+              <div className="text-xs text-muted-foreground">{currentLevelData.description}</div>
             </div>
           </div>
-          
+
           {/* Current Level Requirements */}
           {currentLevelData.levelupRequirements.length > 0 && (
             <div className="pl-8 mt-2">
@@ -66,10 +65,10 @@ export function LevelRequirementsPanel() {
               <ul className="space-y-2 mt-2">
                 {currentLevelData.levelupRequirements.map((req, idx) => {
                   // Check if requirement is completed
-                  const reqCompleted = requirements?.find(r => 
-                    r.requirement === req && r.completed
+                  const reqCompleted = requirements?.find(
+                    (r) => r.requirement === req && r.completed
                   );
-                  
+
                   return (
                     <li key={idx} className="flex items-start gap-2 text-sm">
                       {reqCompleted ? (
@@ -77,9 +76,7 @@ export function LevelRequirementsPanel() {
                       ) : (
                         <div className="h-4 w-4 border border-muted-foreground/50 rounded-full mt-0.5 shrink-0" />
                       )}
-                      <span className={reqCompleted ? 'text-muted-foreground' : ''}>
-                        {req}
-                      </span>
+                      <span className={reqCompleted ? 'text-muted-foreground' : ''}>{req}</span>
                     </li>
                   );
                 })}
@@ -91,7 +88,7 @@ export function LevelRequirementsPanel() {
             </div>
           )}
         </div>
-        
+
         {/* Max Level Reached */}
         {userLevel === 4 && (
           <div className="mt-3 bg-green-50 p-3 rounded-lg border border-green-200">
@@ -135,4 +132,4 @@ function getLevelIconColor(level: number): string {
     default:
       return 'text-muted-foreground';
   }
-} 
+}

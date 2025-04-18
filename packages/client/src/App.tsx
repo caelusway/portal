@@ -26,6 +26,7 @@ import ProfilePage from './pages/profile';
 import { useAgent } from '@/hooks/use-query-hooks';
 import { v4 as uuidv4 } from 'uuid';
 import CoreAgentRoute from './routes/core-agent';
+import { UserLevelProvider } from './lib/user-level.tsx';
 
 // Create a query client with optimized settings
 const queryClient = new QueryClient({
@@ -78,43 +79,45 @@ function App() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <PrivyAuthProvider>
-        <WagmiProviderWrapper>
-          <WelcomeFormProvider>
-            <div
-              className="dark antialiased"
-              style={{
-                colorScheme: 'dark',
-              }}
-            >
-              <BrowserRouter>
-                <TooltipProvider delayDuration={0}>
-                  <SidebarProvider>
-                    <AppSidebar />
-                    <SidebarInset>
-                      <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="chat/:agentId" element={<CoreAgentRoute />} />
-                        <Route path="settings/:agentId" element={<Settings />} />
-                        <Route path="agents/new" element={<AgentCreatorRoute />} />
-                        <Route path="/create" element={<AgentCreator />} />
-                        <Route path="/logs" element={<LogViewer />} />
-                        <Route path="room/:serverId" element={<Room />} />
-                        <Route path="settings/" element={<EnvSettings />} />
-                        <Route path="/dashboard" element={<DashboardLayout />} />
-                        <Route path="/profile" element={<ProfilePage />} />
-                      </Routes>
-                    </SidebarInset>
-                  </SidebarProvider>
-                  <Toaster />
-                </TooltipProvider>
-              </BrowserRouter>
-            </div>
-          </WelcomeFormProvider>
-        </WagmiProviderWrapper>
-      </PrivyAuthProvider>
-    </QueryClientProvider>
+    <UserLevelProvider>
+      <QueryClientProvider client={queryClient}>
+        <PrivyAuthProvider>
+          <WagmiProviderWrapper>
+            <WelcomeFormProvider>
+              <div
+                className="dark antialiased"
+                style={{
+                  colorScheme: 'dark',
+                }}
+              >
+                <BrowserRouter>
+                  <TooltipProvider delayDuration={0}>
+                    <SidebarProvider>
+                      <AppSidebar />
+                      <SidebarInset>
+                        <Routes>
+                          <Route path="/" element={<Home />} />
+                          <Route path="chat/:agentId" element={<CoreAgentRoute />} />
+                          <Route path="settings/:agentId" element={<Settings />} />
+                          <Route path="agents/new" element={<AgentCreatorRoute />} />
+                          <Route path="/create" element={<AgentCreator />} />
+                          <Route path="/logs" element={<LogViewer />} />
+                          <Route path="room/:serverId" element={<Room />} />
+                          <Route path="settings/" element={<EnvSettings />} />
+                          <Route path="/dashboard" element={<DashboardLayout />} />
+                          <Route path="/profile" element={<ProfilePage />} />
+                        </Routes>
+                      </SidebarInset>
+                    </SidebarProvider>
+                    <Toaster />
+                  </TooltipProvider>
+                </BrowserRouter>
+              </div>
+            </WelcomeFormProvider>
+          </WagmiProviderWrapper>
+        </PrivyAuthProvider>
+      </QueryClientProvider>
+    </UserLevelProvider>
   );
 }
 

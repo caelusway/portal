@@ -26,12 +26,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { CHAT_SOURCE } from '@/constants';
 import clientLogger from '@/lib/logger';
 import { useAuth } from '@/lib/use-auth';
-import { useWallets, type ConnectedWallet } from '@privy-io/react-auth';
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '../ui/collapsible';
-import { ChevronRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
-  mintIdeaAndVisionNFTs,
+  mintNftToUser,
   ZORA_CONTRACT_ADDRESS,
   IDEA_NFT_ID,
   VISION_NFT_ID,
@@ -39,9 +36,12 @@ import {
 } from '@/lib/nft-actions';
 import { baseSepolia } from 'viem/chains';
 import type { Hex } from 'viem';
-import { useUserLevel } from '@/hooks/use-user-level';
+import { useUserLevelContext } from '@/lib/user-level.tsx';
 import { updateRequirementProgress } from '@/lib/api/user-levels';
 import { readContract } from 'viem/actions';
+import { useWallets, ConnectedWallet } from '@privy-io/react-auth';
+
+// NOTE: This component requires UserLevelProvider to be present in the React tree.
 
 const LEVELS = {
   1: { label: 'App Started', requirements: ['Wallet connected'] },
@@ -192,9 +192,20 @@ export function CoreAgentChat({
   const [isMinting, setIsMinting] = useState<boolean>(false);
   const [mintingAttempted, setMintingAttempted] = useState<boolean>(false);
   const { user } = useAuth();
-  const { wallets } = useWallets();
   const { toast } = useToast();
-  const { level, isLoading: levelLoading, refetchLevel } = useUserLevel();
+  const { level, isLoading: levelLoading, refetchLevel } = useUserLevelContext();
+  const { wallets } = useWallets();
+
+  if (!user || !user.id) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <div className="animate-pulse flex flex-col items-center">
+          <img src="/bioicon.png" alt="BIO Logo" className="h-12 mb-4" />
+          <p className="text-muted-foreground">Loading your wallet...</p>
+        </div>
+      </div>
+    );
+  }
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -273,53 +284,44 @@ export function CoreAgentChat({
   );
 
   const triggerMintingProcess = useCallback(async () => {
-    console.log('[triggerMintingProcess] Starting minting process check...', { level });
+    console.log('[triggerMintingProcess] Starting NFT mint process...', { level });
     if (level !== 1) {
       console.warn(`[triggerMintingProcess] Aborting: User level is ${level}, not 1.`);
       return;
     }
-
     if (isMinting) {
       console.warn('[triggerMintingProcess] Aborting: Minting already in progress.');
       return;
     }
-
+    // Find the user's Privy embedded wallet address
     const embeddedWallet = wallets.find(
       (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
     );
-
     if (!embeddedWallet) {
-      const errorMsg =
-        'Your embedded wallet could not be found. Please try logging out and back in.';
-      toast({ title: 'Wallet Not Found', description: errorMsg, variant: 'destructive' });
-      addAgentMessage(`Minting check failed: ${errorMsg}`);
+      toast({
+        title: 'Wallet Not Found',
+        description: 'No embedded wallet found.',
+        variant: 'destructive',
+      });
+      addAgentMessage('NFT mint failed: No embedded wallet found.');
       return;
     }
-
+    // Check if user already owns the NFTs
     try {
-      console.log(
-        `[triggerMintingProcess] Checking balances for wallet: ${embeddedWallet.address}`
-      );
       const ideaBalance = await readContract(publicClient, {
         address: ZORA_CONTRACT_ADDRESS,
         abi: erc1155BalanceOfAbi,
         functionName: 'balanceOf',
         args: [embeddedWallet.address as Hex, IDEA_NFT_ID],
       });
-
       const visionBalance = await readContract(publicClient, {
         address: ZORA_CONTRACT_ADDRESS,
         abi: erc1155BalanceOfAbi,
         functionName: 'balanceOf',
         args: [embeddedWallet.address as Hex, VISION_NFT_ID],
       });
-
-      console.log('[triggerMintingProcess] NFT Balances:', { ideaBalance, visionBalance });
-
       if (ideaBalance > 0n && visionBalance > 0n) {
-        console.warn(
-          '[triggerMintingProcess] Aborting: User already owns both Idea and Vision NFTs.'
-        );
+        addAgentMessage('You already own both Idea and Vision NFTs.');
         return;
       }
     } catch (balanceError) {
@@ -329,140 +331,83 @@ export function CoreAgentChat({
         description: 'Could not verify your existing NFTs. Please try again.',
         variant: 'destructive',
       });
-      addAgentMessage('Minting check failed: Could not verify your existing NFTs.');
+      addAgentMessage('NFT mint failed: Could not verify your existing NFTs.');
       return;
     }
-
-    const expectedChainId = `eip155:${baseSepolia.id}`;
-    if (embeddedWallet.chainId !== expectedChainId) {
-      const errorMsg = `Please ensure your wallet is connected to Base Sepolia (Expected: ${expectedChainId}, Found: ${embeddedWallet.chainId}). You may need to switch it via the wallet UI or reconnect.`;
-      toast({
-        title: 'Incorrect Network',
-        description: errorMsg,
-        variant: 'destructive',
-        duration: 7000,
-      });
-      addAgentMessage(`Minting failed: ${errorMsg}`);
-      socketIOManager.sendMessage(
-        JSON.stringify({
-          type: 'user_mint_failure',
-          error: `Wallet on wrong chain: ${embeddedWallet.chainId}`,
-        }),
-        roomId,
-        CHAT_SOURCE,
-        { userId }
-      );
-      return;
-    }
-
     setIsMinting(true);
     addAgentMessage('Minting your Idea and Vision NFTs now...');
-
     try {
-      console.log('[triggerMintingProcess] Calling mintIdeaAndVisionNFTs...');
-      const { ideaNftHash, visionNftHash } = await mintIdeaAndVisionNFTs(embeddedWallet);
-      console.log('[triggerMintingProcess] Minting successful:', { ideaNftHash, visionNftHash });
-
-      toast({ title: 'NFTs Minted Successfully!', variant: 'default', duration: 5000 });
-
-      socketIOManager.sendMessage(
-        JSON.stringify({ type: 'user_mint_success', data: { ideaNftHash, visionNftHash } }),
-        roomId,
-        CHAT_SOURCE,
-        { userId }
+      // Mint Idea NFT to the user's embedded wallet
+      const ideaNftHash = await mintNftToUser(
+        embeddedWallet.address as Hex,
+        IDEA_NFT_ID,
+        1,
+        'Minting Idea NFT via BioDAO Portal'
       );
-
+      await publicClient.waitForTransactionReceipt({ hash: ideaNftHash, timeout: 120_000 });
+      // Mint Vision NFT to the user's embedded wallet
+      const visionNftHash = await mintNftToUser(
+        embeddedWallet.address as Hex,
+        VISION_NFT_ID,
+        1,
+        'Minting Vision NFT via BioDAO Portal'
+      );
+      await publicClient.waitForTransactionReceipt({ hash: visionNftHash, timeout: 120_000 });
+      toast({ title: 'NFTs Minted Successfully!', variant: 'default', duration: 5000 });
       const nextLevelInfo = LEVELS[3];
       const requirementsText = nextLevelInfo.requirements.join(', ');
       addAgentMessage(`NFTs minted successfully! You are now Level 2: ${LEVELS[2].label}.
 Next step (Level 3): ${nextLevelInfo.label}.
 Requirements: ${requirementsText}.`);
-
       refetchLevel();
-
-      // --> Update requirement progress on backend <--
       try {
-        console.log(`[CoreAgentChat] Updating requirement progress for user ${userId}...`);
-        // Requirements for reaching Level 2 are marked as completed here
-        const ideaResult = await updateRequirementProgress(userId, 1, 'mint_idea_nft', true);
-        const visionResult = await updateRequirementProgress(userId, 1, 'mint_vision_nft', true);
-
+        const ideaResult = await updateRequirementProgress(user.id, 1, 'mint_idea_nft', true);
+        const visionResult = await updateRequirementProgress(user.id, 1, 'mint_vision_nft', true);
         if (!ideaResult.success || !visionResult.success) {
-          console.error(
-            '[CoreAgentChat] Failed to update one or both requirement progress entries.',
-            { ideaResult, visionResult }
-          );
-          // Optionally show a toast to the user if this fails, although it's a background task
           toast({
             title: 'Progress Update Issue',
             description: 'Could not update all progress milestones.',
             variant: 'destructive',
           });
-        } else {
-          console.log(
-            `[CoreAgentChat] Successfully updated requirement progress for mint_idea_nft and mint_vision_nft (Level 2).`
-          ); // Updated log
         }
       } catch (progressError) {
-        console.error(
-          '[CoreAgentChat] Unexpected error updating requirement progress:',
-          progressError
-        );
         toast({
           title: 'Progress Update Error',
           description: 'An unexpected error occurred while updating progress.',
           variant: 'destructive',
         });
       }
-      // --> End Update requirement progress <--
     } catch (error: any) {
-      const errorMsg = error.message || 'An unknown error occurred during minting.';
-      console.error('[triggerMintingProcess] Minting failed:', error);
+      const errorMsg = error.message || 'An unknown error occurred during NFT mint.';
       toast({
-        title: 'NFT Minting Failed',
+        title: 'NFT Mint Failed',
         description: errorMsg,
         variant: 'destructive',
         duration: 7000,
       });
-
-      socketIOManager.sendMessage(
-        JSON.stringify({ type: 'user_mint_failure', error: errorMsg }),
-        roomId,
-        CHAT_SOURCE,
-        { userId }
-      );
-
       addAgentMessage(
         `There was an issue minting your NFTs: ${errorMsg} Please try again later or contact support.`
       );
     } finally {
       setIsMinting(false);
     }
-  }, [
-    level,
-    isMinting,
-    wallets,
-    toast,
-    socketIOManager,
-    roomId,
-    userId,
-    addAgentMessage,
-    refetchLevel,
-  ]);
+  }, [level, isMinting, user, toast, addAgentMessage, refetchLevel]);
 
   useEffect(() => {
     refetchLevel();
-    const embeddedWallet = wallets.find(
-      (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
-    );
-
-    if (!levelLoading && level === 1 && !isMinting && !mintingAttempted && embeddedWallet) {
-      console.log('[CoreAgentChat] Conditions met for automatic minting (Level 1 detected).');
+    if (!levelLoading && level === 1 && !isMinting && !mintingAttempted && user.id) {
       setMintingAttempted(true);
-
       triggerMintingProcess();
     }
-  }, [level, levelLoading, wallets, isMinting, mintingAttempted, triggerMintingProcess]);
+  }, [
+    level,
+    levelLoading,
+    isMinting,
+    mintingAttempted,
+    triggerMintingProcess,
+    user.id,
+    refetchLevel,
+  ]);
 
   useEffect(() => {
     socketIOManager.initialize(entityId, [agentId], { userId });

@@ -77,6 +77,7 @@
     "@zoralabs/protocol-sdk": "^0.13.5",
     "node-opus": "^0.3.3",
     "opusscript": "^0.1.1",
+    "permissionless": "^0.2.42",
     "resend": "^4.2.0",
     "viem": "^2.27.0",
     "vittest": "^1.0.2",

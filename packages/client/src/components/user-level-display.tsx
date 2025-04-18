@@ -1,13 +1,13 @@
 'use client';
 
-import { useUserLevel } from '../hooks/use-user-level';
+import { useUserLevelContext } from '../lib/user-level.tsx';
 import { useAuth } from '../lib/use-auth';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Crown, Star } from 'lucide-react';
 
 export function UserLevelDisplay() {
-  const { level, isLoading, error } = useUserLevel();
+  const { level, isLoading, error } = useUserLevelContext();
   const { user } = useAuth();
 
   if (isLoading) {
@@ -30,9 +30,7 @@ export function UserLevelDisplay() {
   }
 
   const userLevel = level || 1;
-  const userName = user?.email?.address 
-    ? user.email.address.split('@')[0] 
-    : 'Researcher';
+  const userName = user?.email?.address ? user.email.address.split('@')[0] : 'Researcher';
 
   return (
     <Card className="p-6 max-w-md mx-auto mb-6 bg-gradient-to-br from-background to-muted">
@@ -60,13 +58,29 @@ export function UserLevelDisplay() {
 function getLevelBadge(level: number) {
   switch (level) {
     case 1:
-      return <Badge variant="outline" className="bg-primary/10 text-primary">Level 1</Badge>;
+      return (
+        <Badge variant="outline" className="bg-primary/10 text-primary">
+          Level 1
+        </Badge>
+      );
     case 2:
-      return <Badge variant="outline" className="bg-amber-500/10 text-amber-500">Level 2</Badge>;
+      return (
+        <Badge variant="outline" className="bg-amber-500/10 text-amber-500">
+          Level 2
+        </Badge>
+      );
     case 3:
-      return <Badge variant="outline" className="bg-violet-500/10 text-violet-500">Level 3</Badge>;
+      return (
+        <Badge variant="outline" className="bg-violet-500/10 text-violet-500">
+          Level 3
+        </Badge>
+      );
     case 4:
-      return <Badge variant="outline" className="bg-green-500/10 text-green-500">Level 4</Badge>;
+      return (
+        <Badge variant="outline" className="bg-green-500/10 text-green-500">
+          Level 4
+        </Badge>
+      );
     default:
       return <Badge variant="outline">Level {level}</Badge>;
   }

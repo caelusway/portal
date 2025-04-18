@@ -3,16 +3,19 @@ import { PropsWithChildren, useEffect, useState, useRef } from 'react';
 import { setSupabaseJwt } from './supabase-client';
 import { useAuth } from './use-auth';
 import * as jose from 'jose'; // Add jose for JWT generation
+import { SmartWalletsProvider } from '@privy-io/react-auth/smart-wallets';
+import { baseSepolia } from 'viem/chains';
 
 const privyConfig = {
   appId: import.meta.env.VITE_PRIVY_APP_ID,
   loginMethods: ['email', 'passkey'] as ('email' | 'passkey')[],
+  defaultChain: baseSepolia,
   appearance: {
     theme: 'dark' as const,
     accentColor: '#8bff2a' as const,
   },
   embeddedWallets: {
-    createOnLogin: 'users-without-wallets' as const,
+    createOnLogin: 'all-users' as const,
   },
 };
 
@@ -146,9 +149,20 @@ export function PrivyAuthProvider({ children }: PropsWithChildren) {
         loginMethods: privyConfig.loginMethods,
         appearance: privyConfig.appearance,
         embeddedWallets: privyConfig.embeddedWallets,
+        defaultChain: privyConfig.defaultChain,
       }}
     >
-      <PrivyAuthIntegration>{children}</PrivyAuthIntegration>
+      <SmartWalletsProvider
+        config={{
+          paymasterContext: {
+            mode: 'SPONSORED',
+            calculateGasLimits: true,
+            expiryDuration: 300,
+          },
+        }}
+      >
+        <PrivyAuthIntegration>{children}</PrivyAuthIntegration>
+      </SmartWalletsProvider>
     </PrivyProvider>
   );
 }

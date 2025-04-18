@@ -8,7 +8,7 @@ import type { UUID, Agent } from '@elizaos/core';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '../components/ui/resizable';
 import { CoreAgentChat } from '../components/agent/core-agent-chat';
 import { useAuth } from '../lib/use-auth';
-import { useUserLevel } from '../hooks/use-user-level';
+import { useUserLevelContext } from '../lib/user-level.tsx';
 import SocketIOManager from '../lib/socketio-manager';
 import { getEntityId } from '../lib/utils';
 import clientLogger from '../lib/logger';
@@ -33,7 +33,7 @@ export default function CoreAgentRoute() {
   const [showDetails, setShowDetails] = useState(false);
   const worldId = WorldManager.getWorldId();
   const { user } = useAuth();
-  const { level, isLoading: levelLoading } = useUserLevel();
+  const { level, isLoading: levelLoading } = useUserLevelContext();
   const { formData, isLoading: formLoading } = useWelcomeForm();
   const { agentId } = useParams<{ agentId: UUID }>();
   const { data: agentData } = useAgent(agentId);

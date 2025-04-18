@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../../lib/use-auth';
-import { useUserLevel } from '../../hooks/use-user-level';
+import { useUserLevelContext } from '@/lib/user-level.tsx';
 import { useWelcomeForm } from '../../lib/welcome-form-context';
 import { useLevelRequirements } from '../../hooks/use-level-requirements';
 import { CoreAgentChat } from './core-agent-chat';
@@ -15,7 +15,7 @@ import { CheckCircle } from 'lucide-react';
 export function LevelSpecificChat() {
   const { agentId } = useParams<{ agentId: string }>();
   const { user, supabaseUserId } = useAuth();
-  const { level, isLoading: levelLoading } = useUserLevel();
+  const { level, isLoading: levelLoading } = useUserLevelContext();
   const { isFormSubmitted, formData } = useWelcomeForm();
   const { requirements } = useLevelRequirements();
   const [initialMessage, setInitialMessage] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export function LevelSpecificChat() {
         setForceRender(true);
       }
     }, 3000); // 3 seconds timeout
-    
+
     return () => clearTimeout(timer);
   }, [forceRender]);
 
@@ -44,27 +44,28 @@ export function LevelSpecificChat() {
     console.log('Current agentId from URL:', agentId);
 
     // Log the state values for debugging
-    console.log('LevelSpecificChat Effect Check:', { 
-      level, 
-      isFormSubmitted, 
-      hasFormData: !!formData, 
-      userName, 
+    console.log('LevelSpecificChat Effect Check:', {
+      level,
+      isFormSubmitted,
+      hasFormData: !!formData,
+      userName,
       projectName,
       supabaseUserId,
-      requirements
+      requirements,
     });
 
     // Use the entry message from the level config, or create a custom message
-    let message = currentLevelConfig?.entryMessage || 
+    let message =
+      currentLevelConfig?.entryMessage ||
       `Welcome back to ${projectName}! How can I help you today?`;
 
     // Add requirements information to the message
     if (requirements && requirements.length > 0) {
       message += `\n\nTo advance to the next level, you'll need to complete:`;
-      
-      const incompleteRequirements = requirements.filter(req => !req.completed);
+
+      const incompleteRequirements = requirements.filter((req) => !req.completed);
       if (incompleteRequirements.length > 0) {
-        incompleteRequirements.forEach(req => {
+        incompleteRequirements.forEach((req) => {
           message += `\n- ${req.requirement}`;
         });
       } else {
@@ -85,7 +86,17 @@ Would you like me to help you get started?`;
     }
 
     setInitialMessage(message);
-  }, [isFormSubmitted, formData, agentId, userName, projectName, level, supabaseUserId, requirements, currentLevelConfig]);
+  }, [
+    isFormSubmitted,
+    formData,
+    agentId,
+    userName,
+    projectName,
+    level,
+    supabaseUserId,
+    requirements,
+    currentLevelConfig,
+  ]);
 
   // Show loading for a maximum of 3 seconds, then force render
   if (levelLoading && !forceRender && !supabaseUserId) {
@@ -103,7 +114,9 @@ Would you like me to help you get started?`;
   const levelName = currentLevelConfig?.name || `Level ${level || 1}`;
 
   return (
-    <div className="flex flex-col h-full p-1 bg-background"> {/* Full page container */}
+    <div className="flex flex-col h-full p-1 bg-background">
+      {' '}
+      {/* Full page container */}
       {/* Header */}
       <header className="flex items-center justify-between p-3 mb-2 border-b border-border">
         {/* Left: Project Name */}
@@ -118,27 +131,26 @@ Would you like me to help you get started?`;
           <span className="text-sm font-normal">| {levelName}</span>
         </Badge>
       </header>
-
       {/* Chat Area - Grow to fill remaining space */}
       <div className="flex-grow overflow-hidden">
         <CoreAgentChat
-          userId={supabaseUserId || "guest"}
+          userId={supabaseUserId || 'guest'}
           userLevel={level || 1}
           initialMessage={initialMessage}
           projectName={projectName}
         />
       </div>
-
       {/* Requirements Indicator (compact, at bottom) */}
       {requirements && requirements.length > 0 && (
         <div className="px-4 py-2 border-t border-border flex items-center justify-between text-sm">
           <span className="text-muted-foreground">
-            Requirements: {requirements.filter(r => r.completed).length}/{requirements.length} completed
+            Requirements: {requirements.filter((r) => r.completed).length}/{requirements.length}{' '}
+            completed
           </span>
           <div className="flex space-x-1">
             {requirements.map((req, idx) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={`w-2 h-2 rounded-full ${req.completed ? 'bg-green-500' : 'bg-gray-300'}`}
                 title={req.requirement}
               />
@@ -149,4 +161,3 @@ Would you like me to help you get started?`;
     </div>
   );
 }
-
