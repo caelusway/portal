@@ -26,9 +26,9 @@ import { DatabaseProvider } from './contexts/db-context';
 import { RequireOnboarding } from './lib/require-onboarding';
 
 // Create protected route components
-const ProtectedDashboard = RequireOnboarding(DashboardLayout);
-const ProtectedProfile = RequireOnboarding(ProfilePage);
-const ProtectedBioDAO = RequireOnboarding(CoreAgent);
+//const ProtectedDashboard = RequireOnboarding(DashboardLayout);
+//const ProtectedProfile = RequireOnboarding(ProfilePage);
+//const ProtectedBioDAO = RequireOnboarding(CoreAgent);
 
 // Create a query client with optimized settings
 const queryClient = new QueryClient({
@@ -101,12 +101,12 @@ function App() {
                           <Routes>
                             <Route path="/" element={<Home />} />
                             <Route path="/chat" element={<CoreAgentRoute />} />
-                            <Route path="/biodao" element={<ProtectedBioDAO />} />
+                            <Route path="/biodao" element={<CoreAgent />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/room/:serverId" element={<Room />} />
                             <Route path="/env-settings" element={<EnvSettings />} />
-                            <Route path="/dashboard" element={<ProtectedDashboard />} />
-                            <Route path="/profile" element={<ProtectedProfile />} />
+                            <Route path="/dashboard" element={<DashboardLayout />} />
+                            <Route path="/profile" element={<ProfilePage />} />
                             <Route path="/logs" element={<LogViewer />} />
                           </Routes>
                         </SidebarInset>
