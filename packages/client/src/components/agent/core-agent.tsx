@@ -529,7 +529,7 @@ export function CoreAgent() {
         wsRef.current = null;
       };
     }
-  }, [user, project]);
+  }, [user]);
 
   useEffect(() => {
     forceUpdate();
