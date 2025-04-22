@@ -1556,7 +1556,7 @@ export function CoreAgent() {
   }
 
   // Show loading state while initializing
-  if (isInitializing || !project || !sessionId) {
+  if (!project || !sessionId) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <Card className="w-full max-w-2xl p-6">
