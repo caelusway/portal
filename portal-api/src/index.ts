@@ -720,34 +720,12 @@ async function handleNftMinting(ws: any, userId: string, nftType: string): Promi
     }
 
     const walletAddress = project.wallet as Hex;
-    let imageUrl: string | null = null;
-
-    // Generate image first - before blockchain minting
-    console.log(`Generating image for ${nftType} NFT`);
-    try {
-      if (nftType === 'idea' && project.projectDescription) {
-        const { generateIdeaNFTImage } = await import('./image-generation-service');
-        imageUrl = await generateIdeaNFTImage(userId, project.projectDescription);
-        console.log(`Successfully generated Idea NFT image: ${imageUrl}`);
-      } else if (nftType === 'vision') {
-        const { generateVisionNFTImage } = await import('./image-generation-service');
-        imageUrl = await generateVisionNFTImage(userId, project.projectVision || '');
-        console.log(`Successfully generated Vision NFT image: ${imageUrl}`);
-      } else {
-        console.warn(
-          `Missing ${nftType === 'idea' ? 'project description' : 'project vision'} for image generation or unsupported NFT type`
-        );
-      }
-    } catch (imageError) {
-      console.error('Error generating NFT image:', imageError);
-      // Continue with minting even if image generation fails
-    }
 
     // Import mint functions
     const { mintIdeaNft, mintVisionNft } = await import('./nft-service');
 
-    // Mint the NFT on-chain
-    console.log(`Minting ${nftType} NFT with image: ${imageUrl || 'none'}`);
+    // Mint the NFT on-chain immediately
+    console.log(`Minting ${nftType} NFT...`);
     let txHash: Hex;
 
     if (nftType === 'idea') {
@@ -758,36 +736,31 @@ async function handleNftMinting(ws: any, userId: string, nftType: string): Promi
       throw new Error(`Unsupported NFT type: ${nftType}`);
     }
 
-    // Store the NFT in the database
+    // Store the NFT in the database without waiting for image
     const nft = await prisma.nFT.create({
       data: {
         type: nftType,
         projectId: userId,
         ...(txHash ? { transactionHash: txHash.toString() } : {}),
-        ...(imageUrl ? { imageUrl } : {}),
       },
     });
 
-    // Send success message to the client
+    // Send success message to the client immediately
     const nftTypeDisplay = getNftDisplayName(nftType);
     ws.send(
       JSON.stringify({
         type: 'nft_minted',
         nftType,
         transactionHash: txHash,
-        imageUrl: imageUrl,
+        imageUrl: null, // Image will be updated later
         message: `Your ${nftTypeDisplay} NFT has been minted successfully!`,
       })
     );
 
-    // Save the chat message with image details for CoreAgent
-    const imageDetail = imageUrl
-      ? ` I've also generated a unique image for your NFT based on your ${nftType === 'idea' ? 'project description' : 'vision statement'}.`
-      : '';
-
+    // Save the chat message about successful minting
     await saveChatMessage(
       await getOrCreateChatSession(userId),
-      `I've minted your ${nftTypeDisplay} NFT successfully. The transaction has been recorded on the blockchain with hash: ${txHash.toString().substring(0, 10)}...${imageDetail}`,
+      `I've minted your ${nftTypeDisplay} NFT successfully. The transaction has been recorded on the blockchain with hash: ${txHash.toString().substring(0, 10)}... I'll generate a unique image for it in the background.`,
       true,
       `mint_${nftType}_nft`,
       true
@@ -795,6 +768,10 @@ async function handleNftMinting(ws: any, userId: string, nftType: string): Promi
 
     // Check if we should level up the user
     await checkAndUpdateUserLevel(project);
+
+    // Generate image asynchronously in the background
+    // This doesn't block the minting process
+    generateNftImageInBackground(userId, nft.id, nftType, project, ws);
 
     return true;
   } catch (error) {
@@ -819,6 +796,62 @@ async function handleNftMinting(ws: any, userId: string, nftType: string): Promi
     );
 
     return false;
+  }
+}
+
+/**
+ * Generate NFT image in background without blocking the minting process
+ */
+async function generateNftImageInBackground(
+  userId: string,
+  nftId: string,
+  nftType: string,
+  project: any,
+  ws: any
+): Promise<void> {
+  try {
+    console.log(`Generating image for ${nftType} NFT in background`);
+    let imageUrl: string | null = null;
+
+    // Generate image based on NFT type
+    if (nftType === 'idea' && project.projectDescription) {
+      const { generateIdeaNFTImage } = await import('./image-generation-service');
+      imageUrl = await generateIdeaNFTImage(userId, project.projectDescription);
+      console.log(`Successfully generated Idea NFT image: ${imageUrl}`);
+    } else if (nftType === 'vision' && project.projectVision) {
+      const { generateVisionNFTImage } = await import('./image-generation-service');
+      imageUrl = await generateVisionNFTImage(userId, project.projectVision);
+      console.log(`Successfully generated Vision NFT image: ${imageUrl}`);
+    } else {
+      console.warn(
+        `Missing ${nftType === 'idea' ? 'project description' : 'project vision'} for image generation or unsupported NFT type`
+      );
+      return;
+    }
+
+    // Update NFT record with image URL
+    if (imageUrl) {
+      await prisma.nFT.update({
+        where: { id: nftId },
+        data: { imageUrl },
+      });
+
+      // Notify the client that image is ready
+      ws.send(
+        JSON.stringify({
+          type: 'nft_image_ready',
+          nftId,
+          nftType,
+          imageUrl,
+        })
+      );
+
+      console.log(`Updated NFT ${nftId} with image URL: ${imageUrl}`);
+    }
+  } catch (imageError) {
+    console.error('Error generating NFT image in background:', imageError);
+    // Failure to generate image doesn't affect the minting process
+    // The NFT is still valid without an image
   }
 }
 

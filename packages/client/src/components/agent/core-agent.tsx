@@ -339,7 +339,6 @@ export function CoreAgent() {
   // Add states for NFT minting and image generation status
   const [isMintingNFT, setIsMintingNFT] = useState(false);
   const [mintingNFTType, setMintingNFTType] = useState<string | null>(null);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   // Add state for controlling data refresh
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
@@ -646,14 +645,12 @@ export function CoreAgent() {
         ) {
           setIsMintingNFT(true);
           setMintingNFTType('idea');
-          setIsGeneratingImage(true);
         } else if (
           data.content.includes('mint your Vision NFT') ||
           data.content.includes('minting a Vision NFT')
         ) {
           setIsMintingNFT(true);
           setMintingNFTType('vision');
-          setIsGeneratingImage(true);
         }
 
         // If this message contains Discord data, update the Discord stats
@@ -883,7 +880,6 @@ export function CoreAgent() {
         // NFT has been successfully minted
         setIsMintingNFT(false);
         setMintingNFTType(null);
-        setIsGeneratingImage(false);
 
         // Refresh NFTs to show the new one
         fetchNFTs();
@@ -907,7 +903,6 @@ export function CoreAgent() {
         if (isMintingNFT) {
           setIsMintingNFT(false);
           setMintingNFTType(null);
-          setIsGeneratingImage(false);
         }
 
         toast({
@@ -1643,11 +1638,7 @@ export function CoreAgent() {
         <div className="flex items-center space-x-3">
           <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
           <div>
-            <p className="font-medium">
-              {isGeneratingImage
-                ? `Generating image for your ${mintingNFTType} NFT...`
-                : `Minting your ${mintingNFTType} NFT...`}
-            </p>
+            <p className="font-medium">{`Minting your ${mintingNFTType} NFT...`}</p>
             <p className="text-xs text-muted-foreground">This may take a minute</p>
           </div>
         </div>
