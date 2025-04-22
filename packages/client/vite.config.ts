@@ -45,66 +45,73 @@ export default defineConfig(({ mode }): UserConfig => {
       'import.meta.env.VITE_SERVER_PORT': JSON.stringify(env.SERVER_PORT || '3000'),
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(
         env.VITE_SUPABASE_URL ||
-          env.SUPABASE_URL ||
-          process.env.VITE_SUPABASE_URL ||
-          process.env.SUPABASE_URL ||
-          ''
+        env.SUPABASE_URL ||
+        process.env.VITE_SUPABASE_URL ||
+        process.env.SUPABASE_URL ||
+        ''
       ),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(
         env.VITE_SUPABASE_ANON_KEY ||
-          env.SUPABASE_ANON_KEY ||
-          process.env.VITE_SUPABASE_ANON_KEY ||
-          process.env.SUPABASE_ANON_KEY ||
-          ''
+        env.SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_ANON_KEY ||
+        ''
       ),
       'import.meta.env.VITE_SUPABASE_SERVICE_KEY': JSON.stringify(
         env.VITE_SUPABASE_SERVICE_KEY ||
-          env.SUPABASE_SERVICE_KEY ||
-          process.env.VITE_SUPABASE_SERVICE_KEY ||
-          process.env.SUPABASE_SERVICE_KEY ||
-          ''
+        env.SUPABASE_SERVICE_KEY ||
+        process.env.VITE_SUPABASE_SERVICE_KEY ||
+        process.env.SUPABASE_SERVICE_KEY ||
+        ''
       ),
       'import.meta.env.VITE_PRIVY_APP_ID': JSON.stringify(
         env.VITE_PRIVY_APP_ID ||
-          env.PRIVY_APP_ID ||
-          process.env.VITE_PRIVY_APP_ID ||
-          process.env.PRIVY_APP_ID ||
-          ''
+        env.PRIVY_APP_ID ||
+        process.env.VITE_PRIVY_APP_ID ||
+        process.env.PRIVY_APP_ID ||
+        ''
       ),
       'import.meta.env.VITE_POSTHOG_KEY': JSON.stringify(
         env.VITE_POSTHOG_KEY ||
-          env.POSTHOG_KEY ||
-          process.env.VITE_POSTHOG_KEY ||
-          process.env.POSTHOG_KEY ||
-          ''
+        env.POSTHOG_KEY ||
+        process.env.VITE_POSTHOG_KEY ||
+        process.env.POSTHOG_KEY ||
+        ''
       ),
       'import.meta.env.VITE_POSTHOG_HOST': JSON.stringify(
         env.VITE_POSTHOG_HOST ||
-          env.POSTHOG_HOST ||
-          process.env.VITE_POSTHOG_HOST ||
-          process.env.POSTHOG_HOST ||
-          ''
+        env.POSTHOG_HOST ||
+        process.env.VITE_POSTHOG_HOST ||
+        process.env.POSTHOG_HOST ||
+        ''
       ),
       'import.meta.env.VITE_SUPABASE_JWT_SECRET': JSON.stringify(
         env.VITE_SUPABASE_JWT_SECRET ||
-          env.SUPABASE_JWT_SECRET ||
-          process.env.VITE_SUPABASE_JWT_SECRET ||
-          process.env.SUPABASE_JWT_SECRET ||
-          ''
+        env.SUPABASE_JWT_SECRET ||
+        process.env.VITE_SUPABASE_JWT_SECRET ||
+        process.env.SUPABASE_JWT_SECRET ||
+        ''
       ),
       'import.meta.env.VITE_BOT_INSTALLATION_URL': JSON.stringify(
         env.VITE_BOT_INSTALLATION_URL ||
-          env.BOT_INSTALLATION_URL ||
-          process.env.VITE_BOT_INSTALLATION_URL ||
-          process.env.BOT_INSTALLATION_URL ||
-          ''
+        env.BOT_INSTALLATION_URL ||
+        process.env.VITE_BOT_INSTALLATION_URL ||
+        process.env.BOT_INSTALLATION_URL ||
+        ''
       ),
       'import.meta.env.VITE_PUBLIC_API_URL': JSON.stringify(
         env.VITE_PUBLIC_API_URL ||
-          env.PUBLIC_API_URL ||
-          process.env.VITE_PUBLIC_API_URL ||
-          process.env.PUBLIC_API_URL ||
-          ''
+        env.PUBLIC_API_URL ||
+        process.env.VITE_PUBLIC_API_URL ||
+        process.env.PUBLIC_API_URL ||
+        ''
+      ),
+      'import.meta.env.VITE_PUBLIC_WS_URL': JSON.stringify(
+        env.VITE_PUBLIC_WS_URL ||
+        env.PUBLIC_WS_URL ||
+        process.env.VITE_PUBLIC_WS_URL ||
+        process.env.PUBLIC_WS_URL ||
+        ''
       ),
     },
     build: {
