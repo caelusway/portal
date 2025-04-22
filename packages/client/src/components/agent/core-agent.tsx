@@ -37,6 +37,8 @@ import remarkGfm from 'remark-gfm';
 import { useWallets, ConnectedWallet } from '@privy-io/react-auth';
 import { fetchDiscordStats, getDiscordProgress } from '../../lib/api/discord';
 import { fetchCurrentLevel } from '../../lib/api/user-level';
+import { useDashboardData } from '../../hooks/use-dashboard-data';
+import { ref } from 'process';
 
 // WebSocket message types
 interface WebSocketMessage {
@@ -312,14 +314,16 @@ export function CoreAgent() {
   const { user } = useAuth();
   const { wallets } = useWallets(); // Get all connected wallets
   const { toast } = useToast();
+
+  const { level, project, discordStats, nfts, progress, error, refresh } = useDashboardData();
+
   const [isConnected, setIsConnected] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [userLevel, setUserLevel] = useState(1);
-  const [nfts, setNfts] = useState<NFT[]>([]);
-  const [discordStats, setDiscordStats] = useState<DiscordStats | null>(null);
+
   const [levelProgress, setLevelProgress] = useState<LevelProgress | null>(null);
   const [showDetails, setShowDetails] = useState(() => {
     const savedPreference = localStorage.getItem('showDetailsSidebar');
@@ -381,6 +385,14 @@ export function CoreAgent() {
       setIsAtBottom(bottom);
     }
   }, []);
+
+  // Update userLevel whenever level changes or when project data loads
+  useEffect(() => {
+    // Only update if level is available and valid
+    if (level && typeof level === 'number') {
+      setUserLevel(level);
+    }
+  }, [level]);
 
   useEffect(() => {
     if (projectId && userLevel) {
@@ -573,7 +585,7 @@ export function CoreAgent() {
               console.log('Fetching Discord stats for project:', data.userId);
               const stats = await fetchDiscordStats(data.userId);
               if (stats) {
-                setDiscordStats(stats);
+                refresh();
                 console.log('Discord stats set successfully');
               }
             } catch (error) {
@@ -647,13 +659,7 @@ export function CoreAgent() {
         // If this message contains Discord data, update the Discord stats
         if (data.discord) {
           console.log('Received Discord data with message:', data.discord);
-          setDiscordStats({
-            memberCount: data.discord.memberCount || 0,
-            papersShared: data.discord.papersShared || 0,
-            messagesCount: data.discord.messagesCount || 0,
-            verified: data.discord.verified || false,
-            serverName: data.discord.serverName || 'Discord Server',
-          });
+          refresh();
         }
 
         // If this is a bot-added message, refresh Discord stats
@@ -800,7 +806,7 @@ export function CoreAgent() {
         break;
 
       case 'nfts':
-        setNfts(data.nfts || []);
+        refresh();
         break;
 
       case 'discord_bot_installed':
@@ -809,11 +815,11 @@ export function CoreAgent() {
 
         // Update Discord stats with the new information
         if (data.discord) {
-          setDiscordStats(data.discord);
+          refresh();
           // Fetch fresh Discord stats via REST API instead of setting from WebSocket
           fetchDiscordStats(projectId || '').then((stats) => {
             if (stats) {
-              setDiscordStats(stats);
+              refresh();
             }
           });
         }
@@ -893,7 +899,7 @@ export function CoreAgent() {
         break;
 
       case 'nfts_data':
-        setNfts(data.nfts || []);
+        refresh();
         break;
 
       case 'error':
@@ -917,7 +923,7 @@ export function CoreAgent() {
         console.log('[CoreAgent] Received Discord stats update:', data);
 
         if (data.stats) {
-          setDiscordStats(data.stats);
+          refresh();
 
           // If this is a level 3 user and they meet requirements, force a progress check
           // But let the server decide if they should level up
@@ -1135,7 +1141,7 @@ export function CoreAgent() {
       console.log('Discord stats fetched via API:', stats);
 
       if (stats) {
-        setDiscordStats(stats);
+        refresh();
       } else {
         console.log('No Discord server connected for this project');
       }
@@ -1293,18 +1299,12 @@ export function CoreAgent() {
 
           // Load Discord stats if available
           if (project.Discord) {
-            setDiscordStats({
-              memberCount: project.Discord.memberCount,
-              papersShared: project.Discord.papersShared,
-              messagesCount: project.Discord.messagesCount,
-              verified: project.Discord.verified,
-              serverName: project.Discord.serverName,
-            });
+            refresh();
           }
 
           // Load NFTs if available
           if (project.NFTs && project.NFTs.length > 0) {
-            setNfts(project.NFTs);
+            refresh();
           }
 
           // Set initialization as complete after all data is loaded
@@ -1428,7 +1428,7 @@ export function CoreAgent() {
 
     return (
       <div className="grid grid-cols-2 gap-4 mt-2">
-        {nfts.map((nft) => (
+        {nfts.map((nft: any) => (
           <div key={nft.id} className="border rounded-lg p-2 bg-card">
             {nft.imageUrl ? (
               <img
