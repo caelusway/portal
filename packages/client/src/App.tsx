@@ -1,9 +1,8 @@
 import './index.css';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { BrowserRouter, Route, Routes, useParams } from 'react-router-dom';
-import AgentCreator from './components/agent-creator';
+import { useEffect } from 'react';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AppSidebar } from './components/app-sidebar';
 import { LogViewer } from './components/log-viewer';
 import { Toaster } from './components/ui/toaster';
@@ -11,10 +10,7 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { STALE_TIMES } from './hooks/use-query-hooks';
 import useVersion from './hooks/use-version';
 import { apiClient } from './lib/api';
-import { CoreAgentChat } from '@/components/agent/core-agent-chat';
-import { LevelSpecificChat } from '@/components/agent/level-specific-chat';
 import Room from './routes/room';
-import AgentCreatorRoute from './routes/createAgent';
 import Home from './routes/home';
 import Settings from './routes/settings';
 import EnvSettings from './components/env-settings';
@@ -23,10 +19,16 @@ import { PrivyAuthProvider } from './lib/auth-provider';
 import { DashboardLayout } from './components/dashboard-layout';
 import { WagmiProviderWrapper } from './lib/wagmi-provider';
 import ProfilePage from './pages/profile';
-import { useAgent } from '@/hooks/use-query-hooks';
-import { v4 as uuidv4 } from 'uuid';
 import CoreAgentRoute from './routes/core-agent';
 import { UserLevelProvider } from './lib/user-level.tsx';
+import { CoreAgent } from './components/agent/core-agent';
+import { DatabaseProvider } from './contexts/db-context';
+import { RequireOnboarding } from './lib/require-onboarding';
+
+// Create protected route components
+const ProtectedDashboard = RequireOnboarding(DashboardLayout);
+const ProtectedProfile = RequireOnboarding(ProfilePage);
+const ProtectedBioDAO = RequireOnboarding(CoreAgent);
 
 // Create a query client with optimized settings
 const queryClient = new QueryClient({
@@ -83,35 +85,38 @@ function App() {
       <PrivyAuthProvider>
         <WagmiProviderWrapper>
           <WelcomeFormProvider>
-            <div
-              className="dark antialiased"
-              style={{
-                colorScheme: 'dark',
-              }}
-            >
-              <BrowserRouter>
-                <TooltipProvider delayDuration={0}>
-                  <SidebarProvider>
-                    <AppSidebar />
-                    <SidebarInset>
-                      <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="chat/:agentId" element={<CoreAgentRoute />} />
-                        <Route path="settings/:agentId" element={<Settings />} />
-                        <Route path="agents/new" element={<AgentCreatorRoute />} />
-                        <Route path="/create" element={<AgentCreator />} />
-                        <Route path="/logs" element={<LogViewer />} />
-                        <Route path="room/:serverId" element={<Room />} />
-                        <Route path="settings/" element={<EnvSettings />} />
-                        <Route path="/dashboard" element={<DashboardLayout />} />
-                        <Route path="/profile" element={<ProfilePage />} />
-                      </Routes>
-                    </SidebarInset>
-                  </SidebarProvider>
-                  <Toaster />
-                </TooltipProvider>
-              </BrowserRouter>
-            </div>
+            <UserLevelProvider>
+              <DatabaseProvider>
+                <div
+                  className="dark antialiased"
+                  style={{
+                    colorScheme: 'dark',
+                  }}
+                >
+                  <BrowserRouter>
+                    <TooltipProvider delayDuration={0}>
+                      <SidebarProvider>
+                        <AppSidebar />
+                        <SidebarInset>
+                          <Routes>
+                            <Route path="/" element={<Home />} />
+                            <Route path="/chat" element={<CoreAgentRoute />} />
+                            <Route path="/biodao" element={<ProtectedBioDAO />} />
+                            <Route path="/settings" element={<Settings />} />
+                            <Route path="/room/:serverId" element={<Room />} />
+                            <Route path="/env-settings" element={<EnvSettings />} />
+                            <Route path="/dashboard" element={<ProtectedDashboard />} />
+                            <Route path="/profile" element={<ProtectedProfile />} />
+                            <Route path="/logs" element={<LogViewer />} />
+                          </Routes>
+                        </SidebarInset>
+                      </SidebarProvider>
+                      <Toaster />
+                    </TooltipProvider>
+                  </BrowserRouter>
+                </div>
+              </DatabaseProvider>
+            </UserLevelProvider>
           </WelcomeFormProvider>
         </WagmiProviderWrapper>
       </PrivyAuthProvider>

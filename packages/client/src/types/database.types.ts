@@ -29,6 +29,7 @@ export interface Project {
   description: string;
   vision?: string;
   created_at: string;
+  level?: number;
 }
 
 export interface AgentInteraction {
@@ -75,4 +76,45 @@ export interface LevelRequirements {
   description: string; // Optional: Human-readable description
   requirements_config: Record<string, any>; // Use JSONB in the DB
   created_at: Date; // Use native Date/Timestamp type
+}
+
+export interface NFT {
+  id: string;
+  type: string;
+  mintedAt: Date;
+  projectId: string;
+  transactionHash?: string;
+  imageUrl?: string;
+}
+
+export interface Discord {
+  id: string;
+  serverId: string;
+  memberCount: number;
+  papersShared: number;
+  messagesCount: number;
+  qualityScore: number;
+  projectId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  inviteLink: string;
+  botAdded: boolean;
+  botAddedAt?: Date;
+  verificationToken?: string;
+  verified: boolean;
+  serverIcon?: string;
+  serverName?: string;
+}
+
+/**
+ * Frontend representation of Discord stats
+ */
+export interface DiscordStats {
+  serverId: string;
+  serverName: string;
+  memberCount: number;
+  messagesCount: number;
+  papersShared: number;
+  verified: boolean;
+  botAdded: boolean;
 }

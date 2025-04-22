@@ -103,43 +103,31 @@ export function AppSidebar() {
                   </div>
                 ) : (
                   <div>
-                    {/* Render enabled agents */}
-                    {onlineAgents.map((agent) => (
-                      <SidebarMenuItem key={agent.id}>
-                        <NavLink to={`/chat/${agent.id}`}>
-                          <SidebarMenuButton
-                            isActive={location.pathname.includes(agent.id as string)}
-                            className="transition-colors px-4 my-4 h-full py-1 rounded-md"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 flex justify-center items-center">
-                                <div className="relative bg-gray-600 rounded-full w-full h-full">
-                                  {agent && (
-                                    <div className="text-sm rounded-full h-full w-full flex justify-center items-center overflow-hidden">
-                                      {agent.settings?.avatar ? (
-                                        <img
-                                          src={agent.settings.avatar}
-                                          alt="Agent Avatar"
-                                          className="w-full h-full object-contain"
-                                        />
-                                      ) : (
-                                        formatAgentName(agent.name)
-                                      )}
-                                      <div className="absolute bottom-0 right-0 w-[10px] h-[10px] rounded-full border-[1px] border-white bg-green-500" />
-                                    </div>
-                                  )}
+                    {/* BioDAO Chat Item */}
+                    <SidebarMenuItem>
+                      <NavLink to="/biodao">
+                        <SidebarMenuButton
+                          isActive={location.pathname === '/biodao'}
+                          className="transition-colors px-4 my-4 h-full py-1 rounded-md"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 flex justify-center items-center">
+                              <div className="relative bg-gray-600 rounded-full w-full h-full">
+                                <div className="text-sm rounded-full h-full w-full flex justify-center items-center overflow-hidden">
+                                  <img
+                                    src="/bioicon.png"
+                                    alt="BioDAO Avatar"
+                                    className="w-full h-full object-contain"
+                                  />
+                                  <div className="absolute bottom-0 right-0 w-[10px] h-[10px] rounded-full border-[1px] border-white bg-green-500" />
                                 </div>
                               </div>
-                              <span className="text-base">
-                                {agent.name.toLowerCase().includes('eliza')
-                                  ? 'CoreAgent'
-                                  : agent.name}
-                              </span>
                             </div>
-                          </SidebarMenuButton>
-                        </NavLink>
-                      </SidebarMenuItem>
-                    ))}
+                            <span className="text-base">CoreAgent</span>
+                          </div>
+                        </SidebarMenuButton>
+                      </NavLink>
+                    </SidebarMenuItem>
 
                     {/* Dashboard Menu Item */}
                     <SidebarMenuItem>

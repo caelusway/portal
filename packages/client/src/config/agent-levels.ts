@@ -106,7 +106,7 @@ export const agentLevels: Record<number, AgentLevel> = {
     name: 'Ecosystem Partner',
     description: "Bio team is now available to you, they'll reach out shortly.",
     entryMessage:
-      'Congratulations on reaching the level 4! You now have access to all tools and resources in the BioDAO ecosystem.',
+      'Congratulations on reaching level 4! You have successfully built a community with 10+ members, shared 25+ scientific papers, and had 100+ messages in your Discord. The Bio team will contact you shortly.',
     levelupRequirements: [], // No more requirements for max level
     capabilities: [
       'Full ecosystem access',
@@ -135,3 +135,61 @@ export const agentLevels: Record<number, AgentLevel> = {
     ],
   },
 };
+
+export const LEVELS = {
+  1: {
+    label: 'Science NFT Creation',
+    entryMessage:
+      "Welcome to BioProtocol! I'm CoreAgent, your guide to launching your DeSci project. Let's start by creating Science NFTs for your scientific concept.",
+    requirements: ['Create Idea NFT', 'Create Vision NFT'],
+    capabilities: ['Science NFT Creation'],
+    suggestedActions: [
+      'Can you help me create my Science NFTs?',
+      'What is the BioProtocol?',
+      'How do Science NFTs work?',
+    ],
+  },
+  2: {
+    label: 'Community Setup',
+    entryMessage:
+      "Congratulations on minting your Science NFTs! Now, let's set up your community on Discord to start building your BioDAO.",
+    requirements: ['Create Discord server', 'Add CoreAgent bot to server'],
+    capabilities: ['Discord Server Setup', 'Community Building Guidance'],
+    suggestedActions: [
+      'How do I set up my Discord?',
+      'What should I include in my Discord?',
+      'Can you verify my Discord?',
+    ],
+  },
+  3: {
+    label: 'Community Initiated',
+    entryMessage:
+      "Your Discord server is set up! Now it's time to grow your community and start sharing scientific papers.",
+    requirements: [
+      'Reach 10+ Discord members',
+      'Share 25+ scientific papers',
+      'Send 100+ messages',
+    ],
+    capabilities: ['Community Growth Strategy', 'Member Tracking', 'Scientific Content Guidance'],
+    suggestedActions: [
+      'How can I grow my Discord?',
+      'What types of papers should we share?',
+      'How many members/papers do I have now?',
+    ],
+  },
+  4: {
+    label: 'Scientific Proof',
+    entryMessage:
+      "Congratulations! You've successfully built your community with 10+ members, shared 25+ papers, and sent 100+ messages. You've completed all the requirements for the BioProtocol onboarding.",
+    requirements: [
+      'All requirements met (10+ Discord members, 25+ papers shared, 100+ messages)',
+      'Speak with Bio team',
+    ],
+    capabilities: ['Full Ecosystem Access', 'Expert Connections', 'Strategic Guidance'],
+    suggestedActions: [
+      'When will the Bio team contact me?',
+      'What should I prepare for my call?',
+      'How can I continue building my BioDAO?',
+    ],
+  },
+} as const;

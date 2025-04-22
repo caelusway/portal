@@ -6,9 +6,7 @@ import localizedFormat from 'dayjs/plugin/localizedFormat';
 import { twMerge } from 'tailwind-merge';
 
 /**
- * Combines multiple class names into a single string.
- * * @param {...ClassValue} inputs - Array of class names to be combined.
- * @returns { string } - Combined class names as a single string.
+ * Combines multiple class names and applies Tailwind merge logic
  */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

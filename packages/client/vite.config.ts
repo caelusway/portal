@@ -92,6 +92,20 @@ export default defineConfig(({ mode }): UserConfig => {
           process.env.SUPABASE_JWT_SECRET ||
           ''
       ),
+      'import.meta.env.VITE_BOT_INSTALLATION_URL': JSON.stringify(
+        env.VITE_BOT_INSTALLATION_URL ||
+          env.BOT_INSTALLATION_URL ||
+          process.env.VITE_BOT_INSTALLATION_URL ||
+          process.env.BOT_INSTALLATION_URL ||
+          ''
+      ),
+      'import.meta.env.VITE_PUBLIC_API_URL': JSON.stringify(
+        env.VITE_PUBLIC_API_URL ||
+          env.PUBLIC_API_URL ||
+          process.env.VITE_PUBLIC_API_URL ||
+          process.env.PUBLIC_API_URL ||
+          ''
+      ),
     },
     build: {
       outDir: 'dist',

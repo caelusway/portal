@@ -57,35 +57,35 @@ export async function getUserLevel(privyId: string): Promise<UserLevel | null> {
     return null;
   }
 
-  const supabase = getSupabase();
+  const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+
   try {
-    const { data, error } = await supabase
-      .from('user_levels')
-      .select('*') // Select all known columns
-      .eq('privy_id', privyId)
-      .single();
+    console.log(`[getUserLevel] Fetching level for user ${privyId} from Portal API...`);
+    const response = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
 
-    console.log('[getUserLevel] Data:', data);
-
-    if (error) {
-      console.error(`Error fetching user level for ${privyId}:`, error);
-      // Handle specific RLS errors if needed
-      if (error.code === '42501') {
-        console.error('RLS Error: Check JWT claims and SELECT policy on user_levels.');
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.warn(`[getUserLevel] No project found for privyId: ${privyId}`);
+        return null;
       }
-      throw error; // Re-throw other errors
+      throw new Error(`Error fetching user level: ${response.statusText}`);
     }
 
-    console.log(`Fetched user level data for ${privyId}:`, data);
-    // Perform runtime check before casting
-    if (data && typeof data.level === 'number' && typeof data.privy_id === 'string') {
-      // Cast to unknown first for type safety
-      return data as unknown as UserLevel;
-    } else if (data) {
-      console.warn('Fetched user level data has unexpected structure:', data);
-      return null; // Return null if structure is wrong
+    const project = await response.json();
+    console.log(`[getUserLevel] Project data retrieved:`, project);
+
+    // Create a UserLevel object from the project data
+    if (project && typeof project.level === 'number') {
+      return {
+        id: project.id,
+        privy_id: project.privyId,
+        level: project.level,
+        created_at: project.createdAt,
+        updated_at: project.updatedAt,
+      };
     } else {
-      return null; // No data found
+      console.warn(`[getUserLevel] Retrieved project has invalid level data:`, project);
+      return null;
     }
   } catch (error) {
     console.error(`Unexpected error in getUserLevel for ${privyId}:`, error);
@@ -103,103 +103,75 @@ export async function createOrUpdateUserLevel(privyId: string): Promise<UserLeve
     return null;
   }
 
-  const supabase = getSupabase();
-  console.log(
-    `[createOrUpdateUserLevel] Checking for existing level record for privyId: ${privyId}`
-  );
+  const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+  console.log(`[createOrUpdateUserLevel] Checking for existing project for privyId: ${privyId}`);
 
   try {
-    // 1. Attempt to select the existing record first
-    const { data: existingData, error: selectError } = await supabase
-      .from('user_levels')
-      .select('*')
-      .eq('privy_id', privyId)
-      .maybeSingle(); // maybeSingle returns null if not found, doesn't throw error
+    // 1. First try to get the existing project
+    const response = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
 
-    if (selectError) {
-      // Handle potential SELECT errors (like RLS issues)
-      console.error(
-        `[createOrUpdateUserLevel] Error selecting user level for ${privyId}:`,
-        selectError
-      );
-      if (selectError.code === '42501') {
-        console.error('RLS Error: Check JWT claims and SELECT policy on user_levels.');
-      }
-      throw selectError; // Re-throw to be caught by outer catch
-    }
-
-    // 2. If a record already exists, return it
-    if (existingData) {
+    // 2. If project exists, return it with UserLevel format
+    if (response.ok) {
+      const project = await response.json();
       console.log(
-        `[createOrUpdateUserLevel] Found existing level ${existingData.level} for ${privyId}. No update needed.`
+        `[createOrUpdateUserLevel] Found existing project with level ${project.level} for ${privyId}.`
       );
-      // Perform runtime check before casting
-      if (typeof existingData.level === 'number') {
-        // Cast to unknown first for type safety
-        return existingData as unknown as UserLevel;
-      } else {
-        console.warn(
-          '[createOrUpdateUserLevel] Existing level data has unexpected structure:',
-          existingData
-        );
-        // Fall through to attempt insert? Or return error? Let's return error.
-        throw new Error('Existing user level record has invalid format.');
-      }
+
+      return {
+        id: project.id,
+        privy_id: project.privyId,
+        level: project.level || 1,
+        created_at: project.createdAt,
+        updated_at: project.updatedAt,
+      };
     }
 
-    // 3. If no record exists, insert a new one with level 1
+    // 3. If project doesn't exist (404) or other error, create a new one
     console.log(
-      `[createOrUpdateUserLevel] No existing record found for ${privyId}. Inserting level 1.`
+      `[createOrUpdateUserLevel] No existing project found for ${privyId}. Creating new project with level 1.`
     );
-    const { data: insertedData, error: insertError } = await supabase
-      .from('user_levels')
-      .insert({ privy_id: privyId, level: 1 })
-      .select('*')
-      .single(); // Use single() here, expect exactly one row back after insert
 
-    if (insertError) {
+    const createResponse = await fetch(`${API_URL}/api/projects/privy/${privyId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        level: 1,
+      }),
+    });
+
+    if (!createResponse.ok) {
       console.error(
-        `[createOrUpdateUserLevel] Error inserting level 1 record for ${privyId}:`,
-        insertError
+        `[createOrUpdateUserLevel] Error creating project for ${privyId}:`,
+        createResponse.statusText
       );
-      if (insertError.code === '23505') {
-        // Unique constraint violation
-        console.warn(
-          `[createOrUpdateUserLevel] Race condition? Record likely created between SELECT and INSERT.`
-        );
-        // Attempt to fetch the record again as it should exist now
-        return getUserLevel(privyId);
-      } else if (insertError.code === '42501') {
-        console.error('RLS Error: Check JWT claims and INSERT policy on user_levels.');
-      }
-      throw insertError; // Re-throw other errors
+      return null;
     }
 
-    // 4. Return the newly inserted record
-    if (insertedData && typeof insertedData.level === 'number') {
-      console.log(`[createOrUpdateUserLevel] Successfully inserted level 1 record for ${privyId}.`);
-      // Cast to unknown first for type safety
-      return insertedData as unknown as UserLevel;
-    } else {
-      console.error(
-        `[createOrUpdateUserLevel] Insert successful but returned no data or invalid data for ${privyId}.`
-      );
-      throw new Error('Failed to create user level record (invalid insert result).');
-    }
+    // 4. Return the newly created project in UserLevel format
+    const newProject = await createResponse.json();
+    console.log(
+      `[createOrUpdateUserLevel] Successfully created project with level 1 for ${privyId}.`
+    );
+
+    return {
+      id: newProject.id,
+      privy_id: newProject.privyId,
+      level: newProject.level || 1,
+      created_at: newProject.createdAt,
+      updated_at: newProject.updatedAt,
+    };
   } catch (error) {
-    // Catch errors from SELECT, INSERT, or the re-fetch
-    console.error(
-      `[createOrUpdateUserLevel] Unexpected error during ensure level process for ${privyId}:`,
-      error
-    );
-    return null; // Return null on unexpected errors
+    // Catch any unexpected errors
+    console.error(`[createOrUpdateUserLevel] Unexpected error for ${privyId}:`, error);
+    return null;
   }
 }
 
 /**
  * Updates the user's level to a specific new level.
  */
-// Removed userId and used privyId, removed .select().single()
 export async function updateUserLevel(
   privyId: string,
   newLevel: number
@@ -213,30 +185,43 @@ export async function updateUserLevel(
     return { success: false, error: new Error('Invalid newLevel') };
   }
 
-  const supabase = getSupabase();
+  const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
   console.log(`Updating user level for ${privyId} to ${newLevel}...`);
 
   try {
-    const { error } = await supabase
-      .from('user_levels')
-      .update({ level: newLevel })
-      .eq('privy_id', privyId);
-    // Removed .select().single() to avoid PGRST116 if row doesn't exist or RLS prevents reading
+    // First get the current project data
+    const getResponse = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
 
-    if (error) {
-      console.error(`Error updating user level for ${privyId}:`, error);
-      if (error.code === '42501') {
-        console.error('RLS Error: Check JWT claims and UPDATE policy on user_levels.');
-      } else if (error.code === 'PGRST116') {
-        // This shouldn't happen without select(), but log if it does
-        console.error('PGRST116 occurred unexpectedly during update for ', privyId);
-      }
-      // Return error information
-      return { success: false, error };
+    if (!getResponse.ok) {
+      console.error(`Error fetching project for ${privyId}:`, getResponse.statusText);
+      return {
+        success: false,
+        error: new Error(`Failed to fetch project: ${getResponse.statusText}`),
+      };
     }
 
-    // If no error, assume success (we can't easily check affected rows without SELECT)
-    console.log(`User level update request sent for ${privyId} to level ${newLevel}.`);
+    const project = await getResponse.json();
+
+    // Update the project with the new level
+    const updateResponse = await fetch(`${API_URL}/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        level: newLevel,
+      }),
+    });
+
+    if (!updateResponse.ok) {
+      console.error(`Error updating level for ${privyId}:`, updateResponse.statusText);
+      return {
+        success: false,
+        error: new Error(`Failed to update level: ${updateResponse.statusText}`),
+      };
+    }
+
+    console.log(`Successfully updated level for ${privyId} to ${newLevel}`);
     return { success: true };
   } catch (error) {
     console.error(`Unexpected error in updateUserLevel for ${privyId}:`, error);
@@ -247,25 +232,27 @@ export async function updateUserLevel(
 /**
  * Increment the user's level by 1
  */
-export async function incrementUserLevel(userId: string) {
+export async function incrementUserLevel(privyId: string) {
   try {
     // First get the current level object or null
-    const currentUserLevelData = await getUserLevel(userId);
+    const currentUserLevelData = await getUserLevel(privyId);
 
     // Check if user level data exists
     if (!currentUserLevelData) {
-      console.error(`Cannot increment level for ${userId}: User level data not found.`);
-      throw new Error(`User level data not found for user ${userId}`);
+      console.error(`Cannot increment level for ${privyId}: User level data not found.`);
+      throw new Error(`User level data not found for user ${privyId}`);
     }
 
     // Safely access the level property now
     const currentLevel = currentUserLevelData.level;
     const nextLevel = currentLevel + 1;
 
+    console.log(`Incrementing level for ${privyId} from ${currentLevel} to ${nextLevel}`);
+
     // Then call updateUserLevel
-    return updateUserLevel(userId, nextLevel);
+    return updateUserLevel(privyId, nextLevel);
   } catch (e) {
-    console.error(`Error incrementing level for ${userId}:`, e);
+    console.error(`Error incrementing level for ${privyId}:`, e);
     throw e; // Re-throw
   }
 }

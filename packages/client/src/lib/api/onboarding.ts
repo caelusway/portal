@@ -1,130 +1,173 @@
-import { getSupabase, supabaseAdmin } from '../supabase-client';
 import { Profile } from '../../types/database.types';
 
+const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+
 /**
- * Get profile by privy_id using the get_full_profile RPC.
- * This function bypasses RLS using SECURITY DEFINER.
+ * Get profile by privy_id
  */
-export async function getOnboardingProfile(privyId: string): Promise<Profile> {
-  console.log('getOnboardingProfile (RPC) called with:', { privyId });
-
-  if (!privyId) {
-    console.error('getOnboardingProfile requires privyId.');
-    throw new Error('Privy identifier required.');
-  }
-
+export const getOnboardingProfile = async (privyId: string): Promise<Profile | null> => {
   try {
-    // Use the admin client to bypass RLS
-    if (!supabaseAdmin) {
-      throw new Error('Admin client not available. Check your environment variables.');
+    const response = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`Error fetching profile: ${response.statusText}`);
     }
 
-    const { data, error } = await supabaseAdmin.rpc(
-      'get_full_profile',
-      { p_privy_id: privyId }
-    );
-
-    if (error) {
-      console.error('Error calling get_full_profile RPC:', error);
-      throw new Error(`Failed to fetch profile: ${error.message}`);
-    }
-
-    if (!data) {
-      console.warn('get_full_profile RPC returned no data for:', { privyId });
-      throw new Error('Profile not found.');
-    }
-
-    console.log('Successfully fetched profile via RPC:', data);
-
-    return data as Profile;
-
+    const project = await response.json();
+    return mapProjectToProfile(project);
   } catch (error) {
-    // Catch potential re-thrown errors
-    console.error('Error in getOnboardingProfile:', error);
-    throw error; // Re-throw the error to be handled by the caller
+    console.error('Failed to fetch onboarding profile:', error);
+    return null;
   }
-}
+};
 
 /**
- * Create or update a profile (using privy_id as the conflict target)
+ * Create or update a profile using privyId
  */
-export async function createOnboardingProfile(
-  profile: Omit<Profile, 'id' | 'created_at' | 'updated_at' | 'user_id'> & { privy_id: string }
-) {
-  console.log('Creating/updating profile:', profile);
-
-  // User must have privy_id
-  if (!profile.privy_id) {
-    throw new Error('Profile must have privy_id');
+export const createOnboardingProfile = async (
+  profile: Omit<Profile, 'id' | 'created_at' | 'updated_at' | 'level'> & {
+    privy_id: string;
+    wallet_address?: string;
   }
-
-  // Always get the latest client with JWT token
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('profiles')
-    .upsert(profile, {
-      onConflict: 'privy_id',
-      ignoreDuplicates: false,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating/updating profile:', error);
-    // Check RLS error specifically
-    if (error.code === '42501') {
-      console.error('RLS Error: Ensure the client JWT has the correct privy_id claim and RLS policies allow insert/update based on request.jwt.claims ->> \'privy_id\'.');
+): Promise<Profile> => {
+  try {
+    // Ensure wallet is defined
+    if (!profile.wallet_address) {
+      throw new Error('Wallet address is required to create a profile');
     }
-    throw new Error('Failed to save profile');
-  }
 
-  console.log('Profile created/updated successfully:', data);
-  return data as unknown as Profile;
-}
+    const response = await fetch(`${API_URL}/api/projects/privy/${profile.privy_id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fullName: profile.full_name,
+        email: profile.email,
+        projectName: profile.project_name,
+        projectDescription: profile.project_description,
+        projectVision: profile.project_vision,
+        scientificReferences: profile.scientific_references,
+        credentialLinks: profile.credential_links,
+        teamMembers: profile.team_members,
+        motivation: profile.motivation,
+        progress: profile.progress,
+        wallet: profile.wallet_address,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error creating profile: ${response.statusText}`);
+    }
+
+    const project = await response.json();
+    return mapProjectToProfile(project);
+  } catch (error) {
+    console.error('Failed to create onboarding profile:', error);
+    throw error;
+  }
+};
 
 /**
  * Update an existing profile using privy_id
  */
-export async function updateOnboardingProfile(privyId: string, updates: Partial<Omit<Profile, 'id' | 'privy_id' | 'created_at' | 'updated_at'>>) {
-  // Ensure privy_id is not accidentally included in updates
-  const { privy_id, ...safeUpdates } = updates as any;
+export async function updateOnboardingProfile(
+  privyId: string,
+  updates: Partial<Omit<Profile, 'id' | 'privy_id' | 'created_at' | 'updated_at'>>
+): Promise<Profile> {
+  console.log('Updating profile with Portal API:', { privyId, updates });
 
-  // Always get the latest client with JWT token
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(safeUpdates)
-    .eq('privy_id', privyId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error updating profile:', error);
-    if (error.code === '42501') {
-      console.error('RLS Error: Ensure the client JWT has the correct privy_id claim and RLS policies allow update based on request.jwt.claims ->> \'privy_id\'.');
+  try {
+    // First get the existing project
+    const project = await getOnboardingProfile(privyId);
+    if (!project) {
+      throw new Error('Profile not found');
     }
-    throw new Error('Failed to update profile');
-  }
 
-  return data as unknown as Profile;
+    // Then update it with the new values
+    const response = await fetch(`${API_URL}/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: updates.full_name,
+        email: updates.email,
+        projectName: updates.project_name,
+        projectDescription: updates.project_description,
+        projectVision: updates.project_vision,
+        scientificReferences: updates.scientific_references,
+        credentialLinks: updates.credential_links,
+        teamMembers: updates.team_members,
+        motivation: updates.motivation,
+        progress: updates.progress,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update profile: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return mapProjectToProfile(data);
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    throw new Error(
+      `Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
 }
 
 /**
  * Delete a profile using privy_id
  */
-export async function deleteOnboardingProfile(privyId: string) {
-  // Always get the latest client with JWT token
-  const supabase = getSupabase();
-  const { error } = await supabase
-    .from('profiles')
-    .delete()
-    .eq('privy_id', privyId);
+export async function deleteOnboardingProfile(privyId: string): Promise<void> {
+  console.log('Deleting profile with Portal API:', { privyId });
 
-  if (error) {
-    console.error('Error deleting profile:', error);
-    if (error.code === '42501') {
-      console.error('RLS Error: Ensure the client JWT has the correct privy_id claim and RLS policies allow delete based on request.jwt.claims ->> \'privy_id\'.');
+  try {
+    // First get the project ID
+    const project = await getOnboardingProfile(privyId);
+    if (!project) {
+      console.warn('No profile found to delete for privyId:', privyId);
+      return;
     }
-    throw new Error('Failed to delete profile');
+
+    const response = await fetch(`${API_URL}/api/projects/${project.id}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete profile: ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error deleting profile:', error);
+    throw new Error(
+      `Failed to delete profile: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
+}
+
+/**
+ * Helper function to map from Project schema to Profile schema
+ */
+function mapProjectToProfile(project: any): Profile {
+  return {
+    id: project.id,
+    privy_id: project.privyId,
+    full_name: project.fullName,
+    email: project.email,
+    username: project.username,
+    project_name: project.projectName,
+    project_description: project.projectDescription,
+    project_vision: project.projectVision,
+    scientific_references: project.scientificReferences,
+    credential_links: project.credentialLinks,
+    team_members: project.teamMembers,
+    motivation: project.motivation,
+    progress: project.progress,
+    created_at: project.createdAt,
+    updated_at: project.updatedAt,
+    level: project.level || 1,
+  };
 }

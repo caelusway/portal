@@ -15,6 +15,7 @@ import clientLogger from '../lib/logger';
 import { useToast } from '@/hooks/use-toast';
 import { useWelcomeForm } from '@/lib/welcome-form-context';
 import { useUserLevel } from '../hooks/use-user-level';
+import { CoreAgent } from '../components/agent/core-agent';
 // Define level requirements (could be moved to a shared constants file)
 const LEVELS = {
   1: { label: 'App Started', requirements: ['Wallet connected'] },
@@ -100,14 +101,7 @@ export default function CoreAgentRoute() {
   return (
     <ResizablePanelGroup direction="horizontal" className="w-full h-full">
       <ResizablePanel defaultSize={65}>
-        <CoreAgentChat
-          agentId={agentId}
-          worldId={worldId}
-          agentData={agent}
-          showDetails={showDetails}
-          toggleDetails={toggleDetails}
-          initialMessage={initialMessage || ''}
-        />
+        <CoreAgent />
       </ResizablePanel>
       <ResizableHandle />
       {showDetails && (

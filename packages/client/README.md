@@ -1,3 +1,70 @@
+# BioDAO CoreAgent Plugin
+
+An Eliza plugin that provides a guided onboarding experience for creating a Decentralized Science (DeSci) project and BioDAO.
+
+## Features
+
+- **Agent-First Interaction**: All platform actions are mediated through the chat UI
+- **NFT Minting**: Guide users through minting Idea and Vision NFTs
+- **Discord Integration**: Help users create and grow their Discord community
+- **Level System**: Progressive onboarding process with clear requirements
+
+## Level System
+
+The plugin implements a 4-level progression system:
+
+1. **Level 1: App Started**
+
+   - Requirements: Wallet Connected
+   - Actions: Mint Idea and Vision NFTs
+
+2. **Level 2: Science NFTs Minted**
+
+   - Requirements: Discord Server Created, 4+ Discord Members
+   - Actions: Setup a Discord server and add members
+
+3. **Level 3: Community Initiated**
+
+   - Requirements: 10+ Discord Members, 25+ Papers Shared, 100+ Messages
+   - Actions: Grow community and share scientific content
+
+4. **Level 4: Community Growth + Proof**
+   - Actions: Complete sandbox guide and schedule team call
+
+## Integration with Portal API
+
+This plugin connects to the BioDAO Portal API via WebSocket to:
+
+- Authenticate users
+- Process NFT minting requests
+- Monitor Discord server statistics
+- Track user progress through levels
+- Send/receive chat messages with the CoreAgent
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run dev:client
+
+# Build for production
+npm run build
+```
+
+## Configuration
+
+The plugin requires the following environment variables:
+
+- `NEXT_PUBLIC_WS_URL`: WebSocket URL for the Portal API (defaults to `ws://localhost:3001`)
+- `NEXT_PUBLIC_API_URL`: HTTP URL for the Portal API (defaults to `http://localhost:3001`)
+
+## License
+
+Proprietary - All rights reserved.
+
 # BioDAO Portal Client
 
 This is the client-side application for the BioDAO Portal, built with React, TypeScript, and Vite.
@@ -9,6 +76,7 @@ The application uses Supabase for database storage and authentication. Key table
 ### Profiles Table
 
 The `profiles` table stores user profile information including:
+
 - Basic user information (user_id, privy_id, email)
 - Project details (name, description, vision)
 - Scientific references and credentials
@@ -54,14 +122,16 @@ The application uses Privy for authentication, with Supabase as the backend user
 
 To verify a Discord server and fetch member counts, the backend server needs to make a direct, authenticated request to the official Discord API.
 
-**Note:** This interaction **must** happen on the backend server. Your Discord Bot Token should *never* be exposed in the frontend client code.
+**Note:** This interaction **must** happen on the backend server. Your Discord Bot Token should _never_ be exposed in the frontend client code.
 
 **Endpoint:** `GET /guilds/{serverId}`
 
 **Query Parameters:**
+
 - `with_counts=true`: Include approximate member counts in the response.
 
 **Headers:**
+
 - `Authorization: Bot <YOUR_DISCORD_BOT_TOKEN>`: Authenticate the request using your bot token (stored securely on the backend).
 - `User-Agent: YourBotName (YourProjectWebsite, v1.0)`: Recommended by Discord.
 
@@ -77,9 +147,9 @@ try {
   const response = await fetch(url, {
     method: 'GET',
     headers: {
-      'Authorization': `Bot ${botToken}`,
-      'User-Agent': 'BioDAOIntegrationBot (BioDAO Portal, v1.0)'
-    }
+      Authorization: `Bot ${botToken}`,
+      'User-Agent': 'BioDAOIntegrationBot (BioDAO Portal, v1.0)',
+    },
   });
 
   if (response.ok) {

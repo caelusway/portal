@@ -1,4 +1,3 @@
-
 import ProfileOverlay from '@/components/profile-overlay';
 import { useAgents } from '@/hooks/use-query-hooks';
 import type { Agent } from '@elizaos/core';
@@ -25,14 +24,24 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   //const { startAgent, isAgentStarting, isAgentStopping } = useAgentManagement();
 
-
   useEffect(() => {
     const getProfile = async () => {
       if (!user?.id) return;
 
       const profile = await getOnboardingProfile(user?.id);
+      if (
+        profile?.full_name &&
+        profile?.project_name &&
+        profile?.project_description &&
+        profile?.project_vision &&
+        profile?.scientific_references &&
+        profile?.credential_links &&
+        profile?.team_members &&
+        profile?.motivation
+      ) {
+        navigate('/dashboard');
+      }
       setProfile(profile);
-      navigate('/dashboard');
     };
     getProfile();
   }, [user?.id]);

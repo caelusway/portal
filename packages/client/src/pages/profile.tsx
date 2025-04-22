@@ -6,14 +6,32 @@ import { getOnboardingProfile, updateOnboardingProfile } from '../lib/api/onboar
 import { Profile } from '../types/database.types';
 import { useUserLevel } from '../hooks/use-user-level';
 import { agentLevels } from '../config/agent-levels';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/card';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { CheckCircle, Edit, Save, Star, Crown, User, Rocket, Book, Users, Mail } from 'lucide-react';
+import {
+  CheckCircle,
+  Edit,
+  Save,
+  Star,
+  Crown,
+  User,
+  Rocket,
+  Book,
+  Users,
+  Mail,
+} from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 export default function ProfilePage() {
@@ -30,12 +48,26 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user?.id) return;
-      
+
       try {
         setIsLoading(true);
         const profileData = await getOnboardingProfile(user.id);
         setProfile(profileData);
-        setFormData(profileData);
+        // Only set form data if profile data exists
+        if (profileData) {
+          setFormData({
+            full_name: profileData.full_name || '',
+            email: profileData.email || '',
+            username: profileData.username || '',
+            project_name: profileData.project_name || '',
+            project_description: profileData.project_description || '',
+            project_vision: profileData.project_vision || '',
+            scientific_references: profileData.scientific_references || '',
+            credential_links: profileData.credential_links || '',
+            team_members: profileData.team_members || '',
+            motivation: profileData.motivation || '',
+          });
+        }
       } catch (error) {
         console.error('Error fetching profile:', error);
         toast({
@@ -49,21 +81,29 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [user?.id]);
+  }, [user?.id, toast]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSaveProfile = async () => {
     if (!user?.id) return;
-    
+
     try {
       setIsLoading(true);
-      const updatedProfile = await updateOnboardingProfile(user.id, formData);
+
+      // Prepare the data for update
+      const updateData: Partial<Profile> = {
+        ...formData,
+      };
+
+      const updatedProfile = await updateOnboardingProfile(user.id, updateData);
+
       setProfile(updatedProfile);
       setIsEditing(false);
+
       toast({
         title: 'Success',
         description: 'Profile updated successfully',
@@ -92,7 +132,7 @@ export default function ProfilePage() {
         <div className="max-w-4xl mx-auto">
           <div className="h-8 w-1/3 bg-muted rounded animate-pulse mb-4"></div>
           <div className="h-6 w-1/2 bg-muted rounded animate-pulse mb-8"></div>
-          
+
           <div className="space-y-8">
             <div className="h-32 bg-muted rounded animate-pulse"></div>
             <div className="h-64 bg-muted rounded animate-pulse"></div>
@@ -144,11 +184,11 @@ export default function ProfilePage() {
                   <div>
                     <Label htmlFor="full_name">Full Name</Label>
                     {isEditing ? (
-                      <Input 
-                        id="full_name" 
-                        name="full_name" 
-                        value={formData.full_name || ''} 
-                        onChange={handleInputChange} 
+                      <Input
+                        id="full_name"
+                        name="full_name"
+                        value={formData.full_name || ''}
+                        onChange={handleInputChange}
                         className="mt-1"
                       />
                     ) : (
@@ -157,15 +197,15 @@ export default function ProfilePage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="email">Email Address</Label>
                     {isEditing ? (
-                      <Input 
-                        id="email" 
-                        name="email" 
-                        value={formData.email || ''} 
-                        onChange={handleInputChange} 
+                      <Input
+                        id="email"
+                        name="email"
+                        value={formData.email || ''}
+                        onChange={handleInputChange}
                         className="mt-1"
                       />
                     ) : (
@@ -175,15 +215,15 @@ export default function ProfilePage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div>
                     <Label htmlFor="username">Username</Label>
                     {isEditing ? (
-                      <Input 
-                        id="username" 
-                        name="username" 
-                        value={formData.username || ''} 
-                        onChange={handleInputChange} 
+                      <Input
+                        id="username"
+                        name="username"
+                        value={formData.username || ''}
+                        onChange={handleInputChange}
                         className="mt-1"
                       />
                     ) : (
@@ -202,9 +242,7 @@ export default function ProfilePage() {
                     {getLevelIcon(level || 1)}
                     Current Level
                   </CardTitle>
-                  <CardDescription>
-                    Your progress in the BioDAO
-                  </CardDescription>
+                  <CardDescription>Your progress in the BioDAO</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="mb-4 flex justify-between items-center">
@@ -213,7 +251,7 @@ export default function ProfilePage() {
                       {currentLevelData?.name || 'Loading...'}
                     </Badge>
                   </div>
-                  
+
                   <div className="space-y-3 mt-4">
                     <h4 className="font-medium text-sm">Level Capabilities:</h4>
                     <ul className="space-y-2">
@@ -225,7 +263,7 @@ export default function ProfilePage() {
                       ))}
                     </ul>
                   </div>
-                  
+
                   {level && level < 4 && currentLevelData && (
                     <div className="mt-4 pt-4 border-t">
                       <h4 className="font-medium text-sm mb-2">Next level requirements:</h4>
@@ -243,7 +281,8 @@ export default function ProfilePage() {
                   )}
                 </CardContent>
                 <CardFooter className="bg-muted/20 text-xs text-muted-foreground">
-                  Last updated: {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : 'N/A'}
+                  Last updated:{' '}
+                  {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : 'N/A'}
                 </CardFooter>
               </Card>
             </div>
@@ -256,19 +295,17 @@ export default function ProfilePage() {
                   <Rocket className="h-5 w-5 text-primary" />
                   Project Information
                 </CardTitle>
-                <CardDescription>
-                  Details about your BioDAO project
-                </CardDescription>
+                <CardDescription>Details about your BioDAO project</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div>
                   <Label htmlFor="project_name">Project Name</Label>
                   {isEditing ? (
-                    <Input 
-                      id="project_name" 
-                      name="project_name" 
-                      value={formData.project_name || ''} 
-                      onChange={handleInputChange} 
+                    <Input
+                      id="project_name"
+                      name="project_name"
+                      value={formData.project_name || ''}
+                      onChange={handleInputChange}
                       className="mt-1"
                     />
                   ) : (
@@ -277,15 +314,15 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
-                
+
                 <div>
                   <Label htmlFor="project_description">Project Description</Label>
                   {isEditing ? (
-                    <Textarea 
-                      id="project_description" 
-                      name="project_description" 
-                      value={formData.project_description || ''} 
-                      onChange={handleInputChange} 
+                    <Textarea
+                      id="project_description"
+                      name="project_description"
+                      value={formData.project_description || ''}
+                      onChange={handleInputChange}
                       className="mt-1 min-h-[120px]"
                     />
                   ) : (
@@ -294,15 +331,15 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
-                
+
                 <div>
                   <Label htmlFor="project_vision">Project Vision</Label>
                   {isEditing ? (
-                    <Textarea 
-                      id="project_vision" 
-                      name="project_vision" 
-                      value={formData.project_vision || ''} 
-                      onChange={handleInputChange} 
+                    <Textarea
+                      id="project_vision"
+                      name="project_vision"
+                      value={formData.project_vision || ''}
+                      onChange={handleInputChange}
                       className="mt-1 min-h-[120px]"
                     />
                   ) : (
@@ -313,7 +350,7 @@ export default function ProfilePage() {
                 </div>
               </CardContent>
             </Card>
-            
+
             <div className="grid gap-6 md:grid-cols-2">
               <Card>
                 <CardHeader>
@@ -324,11 +361,11 @@ export default function ProfilePage() {
                 </CardHeader>
                 <CardContent>
                   {isEditing ? (
-                    <Textarea 
-                      id="scientific_references" 
-                      name="scientific_references" 
-                      value={formData.scientific_references || ''} 
-                      onChange={handleInputChange} 
+                    <Textarea
+                      id="scientific_references"
+                      name="scientific_references"
+                      value={formData.scientific_references || ''}
+                      onChange={handleInputChange}
                       className="min-h-[150px]"
                       placeholder="Enter scientific references separated by new lines"
                     />
@@ -339,7 +376,7 @@ export default function ProfilePage() {
                   )}
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -349,11 +386,11 @@ export default function ProfilePage() {
                 </CardHeader>
                 <CardContent>
                   {isEditing ? (
-                    <Textarea 
-                      id="team_members" 
-                      name="team_members" 
-                      value={formData.team_members || ''} 
-                      onChange={handleInputChange} 
+                    <Textarea
+                      id="team_members"
+                      name="team_members"
+                      value={formData.team_members || ''}
+                      onChange={handleInputChange}
                       className="min-h-[150px]"
                       placeholder="Enter team members separated by new lines"
                     />
@@ -370,4 +407,4 @@ export default function ProfilePage() {
       </div>
     </div>
   );
-} 
+}

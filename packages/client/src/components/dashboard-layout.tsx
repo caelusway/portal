@@ -3,16 +3,12 @@
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { UserLevelDisplay } from './user-level-display';
-import { useUserLevelContext } from '../lib/user-level.tsx';
-import { useLevelRequirements } from '../hooks/use-level-requirements';
-import { useAuth } from '../lib/use-auth';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { BadgeCheck, ArrowRight, Rocket, Star, Crown } from 'lucide-react';
 import { Button } from './ui/button';
 import { LevelRequirementsPanel } from './level-requirements-panel';
 import { agentLevels } from '../config/agent-levels';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { useUserLevel } from '../hooks/use-user-level';
+import { useDashboardData } from '../hooks/use-dashboard-data';
 
 // Level 1 - Inception Stage: Science NFT Minting
 
@@ -180,7 +176,13 @@ function DiscordMetricsDisplay({
   );
 }
 
-function Level4CompletionScreen() {
+function Level4CompletionScreen({
+  memberCount,
+  nftCount,
+}: {
+  memberCount: number;
+  nftCount: number;
+}) {
   return (
     <div className="space-y-6">
       <div className="bg-card border rounded-lg p-6">
@@ -220,7 +222,7 @@ function Level4CompletionScreen() {
               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
             </svg>
             <span>
-              DAO Member Size: <strong>10</strong>
+              DAO Member Size: <strong>{memberCount || 10}</strong>
             </span>
           </div>
         </div>
@@ -243,7 +245,7 @@ function Level4CompletionScreen() {
               <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
             </svg>
             <span>
-              NFTs Minted: <strong>3</strong>
+              NFTs Minted: <strong>{nftCount || 3}</strong>
             </span>
           </div>
         </div>
@@ -351,32 +353,24 @@ function DiscordTutorialVideo() {
 }
 
 export function DashboardLayout() {
-  const { level, isLoading: levelLoading, refetchLevel } = useUserLevel();
-  const { requirements } = useLevelRequirements();
-  const [userLevel, setUserLevel] = useState<number | null>(null);
-
-  // UI state
+  const { level, project, discordStats, nfts, progress, isLoading, error, refresh } =
+    useDashboardData();
+  const [userLevel, setUserLevel] = useState<number>(1);
   const [activeTab, setActiveTab] = useState('progress');
 
+  // Update userLevel whenever level changes or when project data loads
   useEffect(() => {
-    refetchLevel();
-    setUserLevel(level);
+    // Only update if level is available and valid
+    if (level && typeof level === 'number') {
+      setUserLevel(level);
+    }
   }, [level]);
 
-  console.log('[DashboardLayout] Current level:', level, 'isLoading:', levelLoading);
-  console.log('[DashboardLayout] Current level:', level, 'isLoading:', levelLoading);
-  console.log('[DashboardLayout] User level:', userLevel);
-
-  // Log the current level for debugging purposes
-  useEffect(() => {
-    console.log('[DashboardLayout] Current level:', level, 'isLoading:', levelLoading);
-  }, [level, levelLoading]);
-
-  // Sample metrics data - in a real implementation, this would come from your API/database
+  // Calculate metrics from real data
   const metricsData = {
-    members: userLevel && userLevel >= 3 ? 6 : 2,
-    papers: userLevel && userLevel >= 3 ? 12 : 0,
-    messages: userLevel && userLevel >= 3 ? 45 : 10,
+    members: discordStats?.memberCount || 0,
+    papers: discordStats?.papersShared || 0,
+    messages: discordStats?.messagesCount || 0,
   };
 
   // Render skeleton loaders for level requirements
@@ -438,7 +432,7 @@ export function DashboardLayout() {
   );
 
   const renderProgressContent = () => {
-    if (levelLoading || userLevel === null) {
+    if (isLoading) {
       return (
         <div className="space-y-6">
           <h2 className="text-xl font-semibold">Level Progress</h2>
@@ -468,7 +462,7 @@ export function DashboardLayout() {
   };
 
   const renderMetricsContent = () => {
-    if (levelLoading || userLevel === null) {
+    if (isLoading) {
       return renderSkeletonMetrics();
     }
 
@@ -486,7 +480,7 @@ export function DashboardLayout() {
       return (
         <div className="space-y-6">
           <h2 className="text-xl font-semibold">Level 4: Ecosystem Partner</h2>
-          <Level4CompletionScreen />
+          <Level4CompletionScreen memberCount={metricsData.members} nftCount={nfts?.length || 0} />
         </div>
       );
     }
@@ -523,7 +517,7 @@ export function DashboardLayout() {
                     </svg>
                   </div>
                   <span>
-                    NFTs Minted: <strong>{userLevel >= 2 ? 3 : 0}</strong>/3
+                    NFTs Minted: <strong>{nfts?.length || 0}</strong>/2
                   </span>
                 </div>
 
