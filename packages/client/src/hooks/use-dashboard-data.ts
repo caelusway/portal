@@ -5,6 +5,7 @@ import {
   fetchNFTsData,
   fetchDiscordMetrics,
   calculateProgress,
+  fetchSessionId,
 } from '../lib/api/dashboard';
 import { Project, NFT, Discord } from '../types/database.types';
 
@@ -21,6 +22,7 @@ export function useDashboardData() {
   const [progress, setProgress] = useState<any>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Fetch all dashboard data
   const fetchDashboardData = async () => {
@@ -66,6 +68,12 @@ export function useDashboardData() {
       const progressData = calculateProgress(projectLevel, discordData, nftsData);
       console.log(`[useDashboardData] Progress calculated:`, progressData);
       setProgress(progressData);
+
+      // Fetch session ID
+      console.log(`[useDashboardData] Fetching session ID for privyId: ${privyId}`);
+      const sessionIdData = await fetchSessionId(projectData.id);
+      console.log(`[useDashboardData] Session ID fetched:`, sessionIdData);
+      setSessionId(sessionIdData[0].id);
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Failed to load dashboard data');
@@ -88,6 +96,7 @@ export function useDashboardData() {
     discordStats,
     progress,
     isLoading,
+    sessionId,
     error,
     refresh: fetchDashboardData,
     level: currentLevel,

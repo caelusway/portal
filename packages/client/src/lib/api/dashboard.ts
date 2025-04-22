@@ -20,6 +20,17 @@ export async function fetchProjectData(privyId: string) {
   }
 }
 
+export async function fetchSessionId(projectId: string) {
+  try {
+    const response = await fetch(`${API_URL}/api/chat/sessions/project/${projectId}`);
+    if (!response.ok) return [];
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching chat sessions:', error);
+    return [];
+  }
+}
+
 /**
  * Fetch NFT data for a project
  */

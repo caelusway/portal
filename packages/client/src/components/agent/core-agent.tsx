@@ -315,7 +315,8 @@ export function CoreAgent() {
   const { wallets } = useWallets(); // Get all connected wallets
   const { toast } = useToast();
 
-  const { level, project, discordStats, nfts, progress, error, refresh } = useDashboardData();
+  const { level, project, discordStats, nfts, sessionId, progress, error, refresh } =
+    useDashboardData();
 
   const [isConnected, setIsConnected] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -330,7 +331,6 @@ export function CoreAgent() {
     return savedPreference === null ? true : savedPreference === 'true';
   });
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isInitializing, setIsInitializing] = useState(true);
   const [lastLevelCheck, setLastLevelCheck] = useState<number>(Date.now());
@@ -1021,7 +1021,7 @@ export function CoreAgent() {
         const newSession = await getOrCreateChatSession(projectId);
         if (newSession && newSession.id) {
           console.log('Created new chat session on-demand:', newSession.id);
-          setSessionId(newSession.id);
+          refresh();
           // Continue with sending the message now that we have a session
         } else {
           console.error('Failed to create new chat session');
@@ -1267,7 +1267,7 @@ export function CoreAgent() {
               // Use the most recent session (first in the array)
               console.log('Found existing chat sessions:', sessions.length);
               console.log('Using session:', sessions[0].id);
-              setSessionId(sessions[0].id);
+              refresh();
 
               // Load chat history for this session
               await loadChatHistoryForSession(sessions[0].id);
@@ -1277,7 +1277,7 @@ export function CoreAgent() {
               const newSession = await getOrCreateChatSession(project.id);
               if (newSession && newSession.id) {
                 console.log('New session created:', newSession.id);
-                setSessionId(newSession.id);
+                refresh();
                 setMessages([]); // Clear any messages since this is a new session
               } else {
                 console.error('Failed to create new chat session');
@@ -1556,7 +1556,7 @@ export function CoreAgent() {
   }
 
   // Show loading state while initializing
-  if (isInitializing || !projectId || !sessionId) {
+  if (isInitializing || !project || !sessionId) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
         <Card className="w-full max-w-2xl p-6">
