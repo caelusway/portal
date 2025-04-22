@@ -26,9 +26,9 @@ export const character: Character = {
     ...(process.env.TWITTER_USERNAME ? ['@elizaos/plugin-twitter'] : []),
     ...(process.env.TELEGRAM_BOT_TOKEN ? ['@elizaos/plugin-telegram'] : []),
     ...(!process.env.IGNORE_BOOTSTRAP ? ['@elizaos/plugin-bootstrap'] : []),
-    ...(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY
-      ? ['@elizaos/plugin-portal']
-      : []),
+    //...(process.env.VITE_SUPABASE_URL && process.env.VITE_SUPABASE_ANON_KEY
+    //? ['@elizaos/plugin-portal']
+    //: []),
   ],
   settings: {
     ragKnowledge: true,
