@@ -530,12 +530,10 @@ export function CoreAgent() {
 
   // Authenticate user with the WebSocket server
   const authenticateUser = () => {
-    if (!wsRef.current || !user) return;
+    if (!wsRef.current || !user || !embeddedWallet) return;
 
     // Prefer embedded wallet address if available
-    const walletAddress = embeddedWallet
-      ? embeddedWallet.address
-      : user.wallet && (typeof user.wallet === 'string' ? user.wallet : user.wallet.toString());
+    const walletAddress = embeddedWallet.address;
 
     const authPayload: WebSocketMessage = {
       type: 'auth',
