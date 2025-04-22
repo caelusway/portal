@@ -24,9 +24,10 @@ import {
   User,
   FlaskConical,
   Bot,
+  LogOut,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 import ConnectionStatus from './connection-status';
 import { Button } from './ui/button';
 import {
@@ -35,11 +36,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { useAuth } from '@/lib/use-auth';
 
 export function AppSidebar() {
   const [onlineAgents, setOnlineAgents] = useState<Agent[]>([]);
   const { data: { data: agentsData } = {}, isLoading: agentsLoading } = useAgents();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   // Extract agents from the response
   const agents = agentsData?.agents || [];
@@ -60,6 +64,11 @@ export function AppSidebar() {
 
     setOnlineAgents(onlineAgents);
   }, [agentsData]);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
 
   return (
     <>
@@ -187,12 +196,13 @@ export function AppSidebar() {
               </NavLink>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <NavLink to="/logs">
-                <SidebarMenuButton className="text-muted-foreground rounded-md">
-                  <TerminalIcon className="size-5" />
-                  <span>Logs</span>
-                </SidebarMenuButton>
-              </NavLink>
+              <SidebarMenuButton
+                className="text-muted-foreground rounded-md"
+                onClick={handleLogout}
+              >
+                <LogOut className="size-5" />
+                <span>Logout</span>
+              </SidebarMenuButton>
             </SidebarMenuItem>
             {/* Settings button temporarily disabled
             <SidebarMenuItem>
