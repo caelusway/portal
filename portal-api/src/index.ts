@@ -2971,7 +2971,7 @@ app.use(express.json());
 const API_KEY = process.env.PORTAL_API_KEY || 'test-api-key';
 
 // Endpoint for bot installation notification
-app.post('/discord/bot-installed', async (req, res) => {
+app.post('/discord/bot-installed', async (req: any, res: any) => {
   try {
     const { guildId, guildName, memberCount, apiKey } = req.body;
 
@@ -3105,7 +3105,7 @@ Continue growing your community and sharing valuable scientific content to progr
 });
 
 // Endpoint for stats updates
-app.post('/discord/stats-update', async (req, res) => {
+app.post('/discord/stats-update', async (req: any, res: any) => {
   try {
     const { guildId, memberCount, messagesCount, papersShared, qualityScore, apiKey } = req.body;
 
@@ -3904,7 +3904,7 @@ function isLowValueMessage(content: string): boolean {
 }
 
 // Add API endpoint to fetch NFT information
-app.get('/api/nfts/:userId', async (req, res) => {
+app.get('/api/nfts/:userId', async (req: any, res: any) => {
   try {
     const { userId } = req.params;
 
@@ -4204,7 +4204,7 @@ Your journey will be guided by the Portal & your project will level up as you pr
 }
 
 // HTTP route for manual Discord server setup
-app.post('/api/discord/setup', async (req, res) => {
+app.post('/api/discord/setup', async (req: any, res: any) => {
   try {
     const { userId, discordInvite } = req.body;
 
@@ -4262,7 +4262,7 @@ app.post('/api/discord/setup', async (req, res) => {
 });
 
 // GET project by privyId
-app.get('/api/projects/privy/:privyId', async (req, res) => {
+app.get('/api/projects/privy/:privyId', async (req: any, res: any) => {
   const { privyId } = req.params;
 
   if (!privyId) {
@@ -4370,7 +4370,7 @@ app.post('/api/projects/privy/:privyId', async (req: any, res: any) => {
 });
 
 // Add PATCH endpoint for updating a project by ID
-app.patch('/api/projects/:id', async (req, res) => {
+app.patch('/api/projects/:id', async (req: any, res: any) => {
   const { id } = req.params;
   const {
     fullName,
@@ -4492,7 +4492,7 @@ In the meantime, you have full access to all platform features. Is there any spe
  * This endpoint retrieves Discord stats and calculates progress metrics for the given project
  * It's designed to support the CoreAgent interface on the client side
  */
-app.get('/api/discord/:projectId', async (req, res) => {
+app.get('/api/discord/:projectId', async (req: any, res: any) => {
   try {
     const { projectId } = req.params;
 
@@ -4607,7 +4607,7 @@ app.get('/api/discord/:projectId', async (req, res) => {
 // ... existing code ...
 
 // Add API endpoint for Discord bot to check level requirements
-app.post('/discord/check-level-requirements', async (req, res) => {
+app.post('/discord/check-level-requirements', async (req: any, res: any) => {
   try {
     // Verify API key
     const apiKey = req.body.apiKey || req.headers.authorization?.replace('Bearer ', '');

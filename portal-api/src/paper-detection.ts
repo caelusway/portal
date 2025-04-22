@@ -467,7 +467,7 @@ export function analyzeScientificPdf(
 
   // Add default confidence for any PDF to prevent zero confidence cases
   if (confidence === 0) {
-    confidence = 10;
+    confidence = 30;
     reason += 'PDF file with no negative indicators; ';
   }
 

@@ -306,8 +306,10 @@ client.on(Events.MessageCreate, async (message: Message) => {
 
   // Check if this is a command
   if (message.content.startsWith(COMMAND_PREFIX)) {
-    handleBotCommand(message).catch(console.error);
-    return;
+    console.log(
+      `[Bot] Command detected but responses are disabled: "${message.content}" from user ${message.author.tag} in server ${message.guild.name}`
+    );
+    return; // Simply return without handling the command
   }
 
   // Skip low value messages
@@ -490,322 +492,54 @@ async function handleBotCommand(message: Message): Promise<void> {
  * Send help information about available commands
  */
 async function sendHelpMessage(message: Message): Promise<void> {
-  let helpText = `**BioDAO Bot Commands**\n\n`;
-
-  Object.entries(HELP_MESSAGES).forEach(([cmd, description]) => {
-    helpText += `\`${COMMAND_PREFIX} ${cmd}\` - ${description}\n`;
-  });
-
-  helpText += `\nFor more info about BioDAO, visit: https://bio.xyz`;
-
-  await message.reply(helpText);
+  // Command responses disabled
+  console.log(`Help command disabled for: ${message.content}`);
+  return;
 }
 
 /**
  * Send current community stats
  */
 async function sendStatsMessage(message: Message, stats: any, guildId: string): Promise<void> {
-  const guild = client.guilds.cache.get(guildId);
-  if (!guild) return;
-
-  const statsEmbed = {
-    color: 0x7289da,
-    title: `${guild.name} - Community Stats`,
-    description: 'Current statistics for your research community:',
-    fields: [
-      {
-        name: '👥 Members',
-        value: `${guild.memberCount}`,
-        inline: true,
-      },
-      {
-        name: '📝 Messages',
-        value: `${stats.messageCount}`,
-        inline: true,
-      },
-      {
-        name: '📊 Quality Score',
-        value: `${Math.round(stats.qualityScore)}/100`,
-        inline: true,
-      },
-      {
-        name: '📚 Papers Shared',
-        value: `${stats.papersShared}`,
-        inline: true,
-      },
-      {
-        name: '👨‍👩‍👧‍👦 Active Users',
-        value: `${stats.activeUsers.size}`,
-        inline: true,
-      },
-      {
-        name: '🕒 Last Activity',
-        value: `<t:${Math.floor(stats.lastMessageTimestamp.getTime() / 1000)}:R>`,
-        inline: true,
-      },
-    ],
-    timestamp: new Date().toISOString(),
-    footer: {
-      text: 'Stats are updated periodically',
-    },
-  };
-
-  await message.reply({ embeds: [statsEmbed] });
+  // Command responses disabled
+  console.log(`Stats command disabled for: ${message.content}`);
+  return;
 }
 
 /**
  * Explain how message quality is measured
  */
 async function sendQualityInfoMessage(message: Message): Promise<void> {
-  const qualityEmbed = {
-    color: 0x7289da,
-    title: '📈 Message Quality System',
-    description: 'How BioDAO measures the quality of your community discussions:',
-    fields: [
-      {
-        name: '✅ What Counts as Quality',
-        value: [
-          '• Longer, thoughtful messages',
-          '• Formatted text (paragraphs, lists, bold)',
-          '• Sharing links with context',
-          '• Discussing papers in depth',
-          '• Asking substantive questions',
-          '• Responding with detailed answers',
-        ].join('\n'),
-      },
-      {
-        name: '❌ What Hurts Quality',
-        value: [
-          '• Very short messages (\"ok\", \"thanks\")',
-          '• Spam or repeated messages',
-          '• Multiple messages in rapid succession',
-          '• Off-topic conversations',
-          '• Low-effort reactions',
-        ].join('\n'),
-      },
-      {
-        name: '⚠️ Anti-Spam Measures',
-        value:
-          "Our system detects spam patterns and repeated messages. These do not count toward your community's message total.",
-      },
-      {
-        name: '🎯 Level Requirements',
-        value:
-          'To reach Level 4, your community must have a quality score of at least 70/100, along with meeting member and paper requirements.',
-      },
-    ],
-  };
-
-  await message.reply({ embeds: [qualityEmbed] });
+  // Command responses disabled
+  console.log(`Quality info command disabled for: ${message.content}`);
+  return;
 }
 
 /**
  * Provide tips for sharing papers
  */
 async function sendPaperSharingTips(message: Message): Promise<void> {
-  const papersEmbed = {
-    color: 0x7289da,
-    title: '📚 How to Share Research Papers',
-    description: 'Tips for sharing papers that will be detected by our system:',
-    fields: [
-      {
-        name: '📎 Best Ways to Share',
-        value: [
-          '• Upload PDF files directly',
-          '• Share links to papers with DOIs',
-          '• Include links to scientific repositories (arXiv, bioRxiv, etc.)',
-          '• Paste the full paper citation',
-        ].join('\n'),
-      },
-      {
-        name: '🔍 Include These Elements',
-        value: [
-          '• Paper title in quotes',
-          '• Author names and year',
-          '• DOI (Digital Object Identifier)',
-          '• Journal name',
-          '• Brief description of why the paper is interesting',
-        ].join('\n'),
-      },
-      {
-        name: '💼 Example Paper Share',
-        value:
-          '\"Advances in Neural Information Processing Systems\" by Smith et al. (2023). doi:10.1234/example.2023.001\nThis paper introduces a new approach to...',
-      },
-      {
-        name: '🔎 Supported Paper Sources',
-        value:
-          'arXiv, bioRxiv, medRxiv, Nature, Science, Cell, PNAS, PubMed, PLoS, and many other scientific repositories.',
-      },
-    ],
-  };
-
-  await message.reply({ embeds: [papersEmbed] });
+  // Command responses disabled
+  console.log(`Paper sharing tips command disabled for: ${message.content}`);
+  return;
 }
 
 /**
  * Provide community engagement tips
  */
 async function sendCommunityTips(message: Message): Promise<void> {
-  const tipsEmbed = {
-    color: 0x7289da,
-    title: '💡 Community Growth Tips',
-    description: 'How to boost engagement in your research community:',
-    fields: [
-      {
-        name: '👥 Grow Your Member Base',
-        value: [
-          '• Share your invite link in relevant research forums',
-          '• Invite colleagues from your institution',
-          '• Host virtual meetups or journal clubs',
-          '• Create topic-specific channels',
-        ].join('\n'),
-      },
-      {
-        name: '📚 Encourage Paper Sharing',
-        value: [
-          '• Set a weekly paper discussion theme',
-          '• Ask members to share the most interesting paper they read recently',
-          '• Create a dedicated papers channel',
-          '• Share your own research or preprints',
-        ].join('\n'),
-      },
-      {
-        name: '💬 Foster Quality Discussions',
-        value: [
-          '• Ask specific questions about shared papers',
-          '• Highlight interesting methodologies or findings',
-          '• Connect papers to ongoing research topics',
-          '• Encourage members to explain complex concepts',
-        ].join('\n'),
-      },
-      {
-        name: '🌟 Best Practices',
-        value:
-          'Regular, meaningful engagement is better than sporadic activity. Quality over quantity!',
-      },
-    ],
-  };
-
-  await message.reply({ embeds: [tipsEmbed] });
+  // Command responses disabled
+  console.log(`Community tips command disabled for: ${message.content}`);
+  return;
 }
 
 /**
  * Send information about progress toward the next level
  */
 async function sendProgressInfo(message: Message, stats: any, guildId: string): Promise<void> {
-  const guild = client.guilds.cache.get(guildId);
-  if (!guild) return;
-
-  try {
-    // Try to fetch Discord record from the database to get level info
-    const discordInfo = await fetchDiscordInfoFromAPI(guildId);
-
-    if (!discordInfo || !discordInfo.user) {
-      await message.reply('Unable to retrieve level information. Please try again later.');
-      return;
-    }
-
-    const { level } = discordInfo.user;
-
-    let progressTitle = 'Community Progress';
-    let progressDescription = '';
-    // Properly type progressFields
-    let progressFields: Array<{ name: string; value: string; inline?: boolean }> = [];
-
-    // Different progress metrics based on level
-    if (level === 2) {
-      progressTitle = 'Progress to Level 3';
-      progressDescription = 'You need 4+ members to reach Level 3';
-
-      const memberProgress = Math.min(100, (guild.memberCount / 4) * 100);
-
-      progressFields = [
-        {
-          name: '👥 Members',
-          value: `${guild.memberCount}/4 (${Math.round(memberProgress)}% complete)`,
-          inline: true,
-        },
-        {
-          name: 'Next Steps',
-          value: 'Invite more members to your Discord server',
-          inline: false,
-        },
-      ];
-    } else if (level === 3) {
-      progressTitle = 'Progress to Level 4';
-      progressDescription = 'Requirements for Level 4:';
-
-      const memberProgress = Math.min(100, (guild.memberCount / 10) * 100);
-      const papersProgress = Math.min(100, (stats.papersShared / 25) * 100);
-      const messagesProgress = Math.min(100, (stats.messageCount / 100) * 100);
-      const qualityProgress = Math.min(100, (stats.qualityScore / 70) * 100);
-
-      progressFields = [
-        {
-          name: '👥 Members',
-          value: `${guild.memberCount}/10 (${Math.round(memberProgress)}% complete)`,
-          inline: true,
-        },
-        {
-          name: '📚 Papers Shared',
-          value: `${stats.papersShared}/25 (${Math.round(papersProgress)}% complete)`,
-          inline: true,
-        },
-        {
-          name: '💬 Messages',
-          value: `${stats.messageCount}/100 (${Math.round(messagesProgress)}% complete)`,
-          inline: true,
-        },
-        {
-          name: '📊 Quality Score',
-          value: `${Math.round(stats.qualityScore)}/70 (${Math.round(qualityProgress)}% complete)`,
-          inline: true,
-        },
-      ];
-
-      // Add next steps based on what's missing
-      let nextSteps = [];
-      if (guild.memberCount < 10) nextSteps.push('Invite more members');
-      if (stats.papersShared < 25) nextSteps.push('Share more research papers');
-      if (stats.messageCount < 100) nextSteps.push('Encourage more discussion');
-      if (stats.qualityScore < 70)
-        nextSteps.push('Improve message quality (use !biodao quality for tips)');
-
-      if (nextSteps.length > 0) {
-        progressFields.push({
-          name: 'Next Steps',
-          value: nextSteps.join('\n'),
-          inline: false,
-        });
-      }
-    } else if (level === 4) {
-      progressTitle = 'Maximum Level Reached';
-      progressDescription = "Congratulations! You've reached Level 4 - Sandbox Access.";
-
-      progressFields = [
-        {
-          name: '🎉 Achievement Unlocked',
-          value:
-            "You've built a thriving research community! Continue growing your community and engaging in scientific discussions.",
-          inline: false,
-        },
-      ];
-    }
-
-    const progressEmbed = {
-      color: 0x7289da,
-      title: progressTitle,
-      description: progressDescription,
-      fields: progressFields,
-      timestamp: new Date().toISOString(),
-    };
-
-    await message.reply({ embeds: [progressEmbed] });
-  } catch (error) {
-    console.error('Error fetching progress info:', error);
-    await message.reply('Unable to retrieve progress information. Please try again later.');
-  }
+  // Command responses disabled
+  console.log(`Progress info command disabled for: ${message.content}`);
+  return;
 }
 
 /**

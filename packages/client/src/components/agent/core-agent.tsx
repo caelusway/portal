@@ -530,7 +530,7 @@ export function CoreAgent() {
 
   // Authenticate user with the WebSocket server
   const authenticateUser = () => {
-    if (!wsRef.current || !user?.wallet) return;
+    if (!wsRef.current || !user) return;
 
     // Prefer embedded wallet address if available
     const walletAddress = embeddedWallet
