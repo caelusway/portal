@@ -1657,48 +1657,6 @@ export function CoreAgent() {
     );
   };
 
-  // Add a function to request level status directly from the server
-  // Add after the checkLevelUpRequirements function
-
-  // Request level status directly from server
-  const requestLevelStatus = useCallback(() => {
-    if (!projectId || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-
-    console.log('[CoreAgent] Requesting current level status from server');
-    wsRef.current.send(
-      JSON.stringify({
-        type: 'get_level_status',
-        projectId: projectId,
-        timestamp: Date.now(),
-      })
-    );
-  }, [projectId]);
-
-  // Add a periodic level status check separate from the progress checks
-  // Add after the useEffect for levelProgress
-
-  // Set up periodic level status checks
-  useEffect(() => {
-    if (!projectId || !levelPollingEnabled) return;
-
-    console.log('[CoreAgent] Setting up periodic level status checks');
-
-    // Initial check on mount
-    requestLevelStatus();
-
-    // Set up interval for periodic checks (every 15 seconds)
-    const LEVEL_STATUS_INTERVAL = 15000;
-    const intervalId = setInterval(() => {
-      requestLevelStatus();
-    }, LEVEL_STATUS_INTERVAL);
-
-    // Clean up on unmount
-    return () => {
-      clearInterval(intervalId);
-      console.log('[CoreAgent] Level status checks cleaned up');
-    };
-  }, [projectId, levelPollingEnabled, requestLevelStatus]);
-
   // Main component UI when everything is loaded
   return (
     <>
