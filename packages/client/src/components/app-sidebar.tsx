@@ -114,9 +114,9 @@ export function AppSidebar() {
                   <div>
                     {/* BioDAO Chat Item */}
                     <SidebarMenuItem>
-                      <NavLink to="/biodao">
+                      <NavLink to="/chat">
                         <SidebarMenuButton
-                          isActive={location.pathname === '/biodao'}
+                          isActive={location.pathname === '/chat'}
                           className="transition-colors px-4 my-4 h-full py-1 rounded-md"
                         >
                           <div className="flex items-center gap-2">

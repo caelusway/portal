@@ -100,8 +100,7 @@ function App() {
                         <SidebarInset>
                           <Routes>
                             <Route path="/" element={<Home />} />
-                            <Route path="/chat" element={<CoreAgentRoute />} />
-                            <Route path="/biodao" element={<CoreAgent />} />
+                            <Route path="/chat" element={<CoreAgent />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/room/:serverId" element={<Room />} />
                             <Route path="/env-settings" element={<EnvSettings />} />

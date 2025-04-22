@@ -148,7 +148,7 @@ export function WelcomeForm() {
           setActiveTab('nft');
 
           // 5. Navigate to chat
-          navigate(`/biodao`);
+          navigate(`/chat`);
         } catch (error: any) {
           console.error('Error saving profile:', error);
           toast({
