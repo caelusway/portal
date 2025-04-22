@@ -1372,7 +1372,7 @@ export function CoreAgent() {
     loadProjectData();
     checkProgress();
     getDiscordStats();
-  }, [user, isAuthenticated, wallets, embeddedWallet, fetchNFTs, getDiscordStats, checkProgress]);
+  }, [user, isAuthenticated, wallets, embeddedWallet]);
 
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
