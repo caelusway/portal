@@ -113,6 +113,13 @@ export default defineConfig(({ mode }): UserConfig => {
         process.env.PUBLIC_WS_URL ||
         ''
       ),
+      'import.meta.env.VITE_TRACKING_BOT_CLIENT_ID': JSON.stringify(
+        env.VITE_TRACKING_BOT_CLIENT_ID ||
+        env.TRACKING_BOT_CLIENT_ID ||
+        process.env.VITE_TRACKING_BOT_CLIENT_ID ||
+        process.env.TRACKING_BOT_CLIENT_ID ||
+        ''
+      ),
     },
     build: {
       outDir: 'dist',
