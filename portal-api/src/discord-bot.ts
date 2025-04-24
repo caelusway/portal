@@ -15,6 +15,10 @@ import {
   extractPaperMetadata,
   analyzeScientificPdf,
 } from './paper-detection';
+import prisma from './services/db.service';
+import { WebSocketServer, WebSocket as WS } from 'ws';
+import { checkAndPerformLevelUp, checkAndUpdateUserLevel } from './websocket/ws.service';
+import { sendLevelUpEmail, sendSandboxEmail } from './services/email.service';
 
 dotenv.config();
 
@@ -106,6 +110,9 @@ interface MessageHistoryItem {
 // Map of guild IDs to their message history arrays
 const guildMessageHistory: Map<string, MessageHistoryItem[]> = new Map();
 
+// Map to store active WebSocket connections by user ID
+const activeConnections: Record<string, WS> = {};
+
 // Track user message frequency
 interface UserMessageFrequency {
   lastMessages: Date[];
@@ -138,6 +145,9 @@ const HELP_MESSAGES = {
   [COMMANDS.PROGRESS]: 'Shows current progress toward next level',
 };
 
+// Add at the top, after other maps:
+const processedMessageIdsByGuild: Record<string, Set<string>> = {};
+
 // Initialize Discord client with necessary intents
 const client = new Client({
   intents: [
@@ -165,57 +175,71 @@ client.once(Events.ClientReady, () => {
 /**
  * Initialize stats tracking for a guild
  */
-function initializeGuildStats(guild: Guild): void {
+async function initializeGuildStats(guild: Guild): Promise<void> {
   console.log(`Initializing stats for guild: ${guild.name} (${guild.id})`);
+  // Fetch from DB
+  const discordRecord = await prisma.discord.findFirst({ where: { serverId: guild.id } });
+  const dbMessages = discordRecord?.messagesCount || 0;
+  const dbPapers = discordRecord?.papersShared || 0;
+  const dbQuality = discordRecord?.qualityScore || 50;
 
-  // Create fresh stats object
   guildStats.set(guild.id, {
-    messageCount: 0,
-    papersShared: 0,
-    qualityScore: 50, // Default mid-range score
+    messageCount: dbMessages,
+    papersShared: dbPapers,
+    qualityScore: dbQuality,
     lastMessageTimestamp: new Date(),
     activeUsers: new Set<string>(),
   });
 
-  // Initialize message history for this guild
   guildMessageHistory.set(guild.id, []);
-
-  // Immediately send initial stats to API
   notifyPortalAPI(guild.id, 'stats_update');
-
-  // Set up quality check interval for this guild
   setInterval(() => {
     evaluateMessageQuality(guild.id);
   }, MESSAGE_CONFIG.QUALITY_CHECK_INTERVAL_MS);
+  // Set in-memory for compatibility, but never use as source of truth
+  messageCountByGuild[guild.id] = dbMessages;
+  papersSharedByGuild[guild.id] = dbPapers;
+  qualityScoreByGuild[guild.id] = dbQuality;
 }
+
+// Track papers shared by looking for links/attachments
+const papersSharedByGuild: Record<string, number> = {};
+
+// Track message count by guild
+const messageCountByGuild: Record<string, number> = {};
+
+// Simple quality score calculation
+const qualityScoreByGuild: Record<string, number> = {};
 
 // Handle guild join event
 client.on(Events.GuildCreate, async (guild: Guild) => {
-  console.log(`Bot added to guild: ${guild.name} (${guild.id})`);
+  console.log(`[Discord Bot] Added to guild: ${guild.name} (${guild.id})`);
 
   // Initialize stats tracking for this guild
   initializeGuildStats(guild);
 
-  // Notify Portal API that bot was installed
-  await notifyPortalAPI(guild.id, 'guildCreate');
-
-  // Send welcome message in general channel if possible
   try {
-    const generalChannel = guild.channels.cache.find(
-      (channel) => channel.name.includes('general') && channel.isTextBased()
-    ) as TextChannel;
+    // Import dynamically to avoid circular dependencies
+    const wsService = await import('./websocket/ws.service');
+    console.log(
+      `[Discord Bot] Successfully imported ws.service, calling handleGuildCreate for guild ${guild.id}`
+    );
 
-    if (generalChannel) {
-      await generalChannel.send(
-        "Hello everyone! 👋 I'm the BioDAO tracking bot and I've been added to help track community metrics " +
-          'like member count, activity levels, and scientific papers shared. ' +
-          "I operate silently and won't respond to commands - I just watch and learn. " +
-          'All interaction with the BioDAO system should happen through the web interface. ' +
-          'Happy researching! 🧬🔬'
-      );
-    }
+    // Use the ws.service handler to process the event and notify users
+    await wsService.handleGuildCreate(guild.id, guild.name, guild.memberCount);
+    console.log(`[Discord Bot] handleGuildCreate completed for guild ${guild.id}`);
   } catch (error) {
-    console.error('Error sending welcome message:', error);
+    console.error('[Discord Bot] Error calling handleGuildCreate:', error);
+    // Even if there's an error with the WebSocket service, still try to notify the Portal API
+  }
+
+  try {
+    // Also notify the Portal API about this new guild
+    console.log(`[Discord Bot] Notifying Portal API about new guild ${guild.id}`);
+    await notifyPortalAPI(guild.id, 'guildCreate');
+    console.log(`[Discord Bot] Portal API notification completed for guild ${guild.id}`);
+  } catch (apiError) {
+    console.error('[Discord Bot] Error notifying Portal API:', apiError);
   }
 });
 
@@ -276,208 +300,265 @@ function isLowValueMessage(content: string): boolean {
   return false;
 }
 
-// Handle incoming messages
-client.on(Events.MessageCreate, async (message: Message) => {
-  // Skip bot messages
+// Listen for messages to track activity
+client.on(Events.MessageCreate, async (message) => {
+  // Ignore messages from bots
   if (message.author.bot) return;
 
-  // Skip messages not in a guild (DMs)
+  // Check if this is in a guild (not a DM)
   if (!message.guild) return;
 
   const guildId = message.guild.id;
 
-  // Initialize guild stats if needed
-  if (!guildStats.has(guildId)) {
-    initializeGuildStats(message.guild);
+  // --- DEDUPLICATION: Only process each message.id once per guild ---
+  if (!processedMessageIdsByGuild[guildId]) {
+    processedMessageIdsByGuild[guildId] = new Set();
   }
-
-  // Get current stats
-  const stats = guildStats.get(guildId);
-  if (!stats) return;
-
-  // Initialize user frequency tracking
-  const userId = message.author.id;
-  if (!userMessageFrequency.has(userId)) {
-    userMessageFrequency.set(userId, {
-      lastMessages: [],
-      penaltyFactor: 1.0,
-    });
+  if (processedMessageIdsByGuild[guildId].has(message.id)) {
+    // Already processed this message, skip
+    return;
   }
+  processedMessageIdsByGuild[guildId].add(message.id);
 
-  // Check if this is a command
-  if (message.content.startsWith(COMMAND_PREFIX)) {
-    console.log(
-      `[Bot] Command detected but responses are disabled: "${message.content}" from user ${message.author.tag} in server ${message.guild.name}`
-    );
-    return; // Simply return without handling the command
-  }
+  // Check if this is a low-value message that shouldn't count toward stats
+  const isSpam = isLowValueMessage(message.content);
 
-  // Skip low value messages
-  const isLowValue = isLowValueMessage(message.content);
-  if (isLowValue) {
-    // Don't process further but log for debugging
-    if (process.env.DEBUG) {
-      console.log(`Ignoring low-value message from ${message.author.tag}: "${message.content}"`);
+  // Use the stricter paper detection logic from paper-detection.ts
+  const hasAttachment = message.attachments.size > 0;
+  let isPaper = false;
+  if (hasAttachment) {
+    for (const [, attachment] of message.attachments) {
+      const filename = attachment.name?.toLowerCase() || '';
+      if (filename.endsWith('.pdf')) {
+        const paperAnalysis = analyzeScientificPdf(attachment.name || '', attachment.size);
+        const isArxivPattern = attachment.name?.match(/^[0-9]{4}\.[0-9]{4,5}\.pdf$/i);
+        if (isArxivPattern || paperAnalysis.isScientificPaper) {
+          isPaper = true;
+          try {
+            await message.react('📚');
+          } catch (error) {}
+          break; // Stop after first detected paper
+        }
+      }
     }
+  }
+  // Only run text-based detection if no PDF-based paper was found
+  if (!isPaper) {
+    isPaper = detectPaper(message.content, hasAttachment);
+  }
+
+  // --- Paper counting block ---
+  if (isPaper) {
+    // Only increment papersShared, not messagesCount
+    try {
+      const discordRecord = await prisma.discord.findFirst({ where: { serverId: guildId } });
+      if (discordRecord) {
+        const updatedRecord = await prisma.discord.update({
+          where: { id: discordRecord.id },
+          data: {
+            papersShared: discordRecord.papersShared + 1,
+            updatedAt: new Date(),
+          },
+        });
+        papersSharedByGuild[guildId] = updatedRecord.papersShared;
+
+        // Get the project to check for level-up
+        const project = await prisma.project.findUnique({
+          where: { id: discordRecord.projectId },
+          include: {
+            Discord: true,
+            NFTs: true,
+          },
+        });
+
+        // Notify the user that their message was detected as a scientific paper
+        try {
+          await message.react('📚');
+          console.log(`[Paper Detection] Successfully reacted to paper message with 📚`);
+        } catch (error) {
+          console.error('Failed to react to paper message:', error);
+        }
+
+        if (project) {
+          // Check if this paper triggers a level-up
+          // This is especially important for level 3 to 4 transitions where papers are a key metric
+          console.log(
+            `[Paper Detection] Checking level-up after paper detection for project ${project.id}`
+          );
+          if (
+            project.level === 3 &&
+            updatedRecord.memberCount >= 10 &&
+            updatedRecord.papersShared >= 25 &&
+            updatedRecord.messagesCount >= 100
+          ) {
+            console.log(
+              `[Paper Detection] Project ${project.id} meets level 4 requirements after paper detection!`
+            );
+
+            // Check if the user is connected via WebSocket
+            if (activeConnections[project.id]) {
+              await checkAndPerformLevelUp(project, activeConnections[project.id]);
+            } else {
+              // Even if not connected, update their level and send email
+              await prisma.project.update({
+                where: { id: project.id },
+                data: { level: 4 },
+              });
+
+              if (project.email) {
+                await sendLevelUpEmail(project.email, 4);
+                await sendSandboxEmail(project);
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`[Paper Detection] Error updating papers count or checking level-up:`, error);
+    }
+    // Do NOT increment messagesCount for paper messages
     return;
   }
 
-  // Get message history for this guild or initialize it
-  let messageHistory = guildMessageHistory.get(guildId) || [];
+  // --- Message counting block ---
+  // Only increment messagesCount if not spam, and not a paper message
+  if (!isSpam) {
+    try {
+      const discordRecord = await prisma.discord.findFirst({ where: { serverId: guildId } });
+      if (discordRecord) {
+        const updatedRecord = await prisma.discord.update({
+          where: { id: discordRecord.id },
+          data: {
+            messagesCount: discordRecord.messagesCount + 1,
+            papersShared: discordRecord.papersShared, // don't update here
+            qualityScore: qualityScoreByGuild[guildId],
+            updatedAt: new Date(),
+          },
+        });
+        messageCountByGuild[guildId] = updatedRecord.messagesCount;
+        papersSharedByGuild[guildId] = updatedRecord.papersShared;
 
-  // Calculate raw message quality based on content
-  const rawQuality = calculateMessageQuality(message.content);
+        // Log update
+        console.log(
+          `[Discord] Real-time update: message #${updatedRecord.messagesCount} recorded for ${message.guild.name}`
+        );
 
-  // Apply penalty for rapid message frequency
-  const userFrequency = userMessageFrequency.get(userId)!;
-  updateUserMessageFrequency(userId);
+        // Log special cases
+        if (isPaper) {
+          console.log(
+            `[Discord] Paper detected and counted. Paper count is now: ${updatedRecord.papersShared}`
+          );
+        }
 
-  // Calculate similarity penalty (to avoid repetitive content)
-  const similarityPenalty = calculateMessageSimilarityPenalty(
-    message.content,
-    messageHistory,
-    userId
-  );
+        // Check if this update triggered level progress
+        const project = await prisma.project.findUnique({
+          where: { id: discordRecord.projectId },
+          include: {
+            Discord: true,
+            NFTs: true,
+          },
+        });
 
-  // Calculate final quality score
-  const finalQuality = Math.max(0, rawQuality * userFrequency.penaltyFactor * similarityPenalty);
-  const isQualityMessage = finalQuality >= MESSAGE_CONFIG.SPAM_THRESHOLD;
+        if (project) {
+          // Check for level-up if we've reached important message count thresholds
+          if (
+            updatedRecord.messagesCount === 50 ||
+            updatedRecord.messagesCount === 75 ||
+            updatedRecord.messagesCount === 100 ||
+            updatedRecord.messagesCount === 125 ||
+            updatedRecord.messagesCount === 150 ||
+            (updatedRecord.messagesCount >= 100 && updatedRecord.messagesCount % 25 === 0)
+          ) {
+            console.log(
+              `[Discord] Message count milestone reached: ${updatedRecord.messagesCount} - checking for level-up`
+            );
 
-  // Add message to history
-  messageHistory.push({
-    userId: message.author.id,
-    content: message.content,
-    timestamp: new Date(),
-    qualityScore: finalQuality,
-  });
+            // Level 3 to 4 transition depends heavily on message count
+            if (
+              project.level === 3 &&
+              updatedRecord.memberCount >= 10 &&
+              updatedRecord.papersShared >= 25 &&
+              updatedRecord.messagesCount >= 100
+            ) {
+              console.log(
+                `[Discord] Project ${project.id} meets level 4 requirements after message milestone!`
+              );
 
-  // Limit history size
-  if (messageHistory.length > MESSAGE_CONFIG.HISTORY_SIZE) {
-    messageHistory = messageHistory.slice(-MESSAGE_CONFIG.HISTORY_SIZE);
-  }
+              // Check if user is connected to WebSocket
+              if (activeConnections[project.id]) {
+                await checkAndPerformLevelUp(project, activeConnections[project.id]);
+              } else {
+                // Even if not connected, update level and send emails
+                await prisma.project.update({
+                  where: { id: project.id },
+                  data: { level: 4 },
+                });
 
-  // Update guild message history
-  guildMessageHistory.set(guildId, messageHistory);
+                if (project.email) {
+                  await sendLevelUpEmail(project.email, 4);
+                  await sendSandboxEmail(project);
+                }
+              }
+            }
+          }
 
-  // Only count quality messages toward the stats
-  if (isQualityMessage) {
-    stats.messageCount++;
+          // Always check user level on message updates
+          await checkAndUpdateUserLevel(project);
+        }
+      } else {
+        console.log(
+          `[Discord] Warning: No Discord record found for server ${guildId}, can't update message count`
+        );
+      }
+    } catch (error) {
+      console.error(`[Discord] Error updating message count in real-time: ${error}`);
 
-    // Track unique active users
-    stats.activeUsers.add(message.author.id);
-
-    // Update last activity timestamp
-    stats.lastMessageTimestamp = new Date();
-  }
-
-  // Enhanced scientific papers detection with PDF analysis
-  let isPaper = false;
-  let paperAnalysis = null;
-  let pdfAttachment = null;
-
-  // Check if there are any PDF attachments
-  for (const [, attachment] of message.attachments) {
-    const filename = attachment.name?.toLowerCase() || '';
-    if (filename.endsWith('.pdf')) {
-      pdfAttachment = attachment;
-      // Analyze the PDF to see if it's likely a scientific paper
-      paperAnalysis = analyzeScientificPdf(attachment.name || '', attachment.size);
-
-      // Log the analysis for debugging
-      console.log(
-        `PDF Analysis for "${attachment.name}": confidence=${paperAnalysis.confidence}, isScientificPaper=${paperAnalysis.isScientificPaper}`
-      );
-      console.log(`Reason: ${paperAnalysis.reason}`);
-
-      if (paperAnalysis.isScientificPaper) {
-        isPaper = true;
-        break;
+      // Still keep periodic batch updates as a fallback if real-time fails
+      if (messageCountByGuild[guildId] % 10 === 0) {
+        try {
+          if (message.guild) {
+            console.log(
+              `Batch updating database after ${messageCountByGuild[guildId]} messages for server ${message.guild.name}`
+            );
+          } else {
+            console.log(
+              `Batch updating database after ${messageCountByGuild[guildId]} messages for server ID ${guildId}`
+            );
+          }
+          await updateDiscordStats(guildId);
+        } catch (error) {
+          console.error('Failed to update stats:', error);
+          // Retry once after a short delay
+          setTimeout(async () => {
+            try {
+              await updateDiscordStats(guildId);
+              console.log(`Successfully updated stats on retry for guild ID ${guildId}`);
+            } catch (retryError) {
+              console.error('Failed to update stats on retry:', retryError);
+            }
+          }, 5000);
+        }
       }
     }
   }
 
-  // If no PDF attachment was identified as a paper, try the regular detection
-  if (!isPaper) {
-    const hasAttachment = message.attachments.size > 0;
-    isPaper = detectPaper(message.content, hasAttachment);
-  }
+  // Update quality score based on message length, mentions, etc.
+  // This is just a simple example calculation
+  const messageQuality = isSpam ? 0 : Math.min(100, Math.floor(message.content.length / 5));
+  const currentQuality = qualityScoreByGuild[guildId] || 50;
 
-  // Update stats if it's a paper
-  if (isPaper) {
-    stats.papersShared++;
+  // Weighted average to prevent wild fluctuations
+  qualityScoreByGuild[guildId] = Math.round(currentQuality * 0.9 + messageQuality * 0.1);
 
-    // Extract paper metadata if possible for better logging
-    const paperMetadata = extractPaperMetadata(message.content);
-    const paperScore = evaluatePaperQuality(message.content, !!pdfAttachment);
-
-    // Log the detected paper with metadata if available
-    if (paperMetadata) {
-      console.log(`Scientific paper detected in ${message.guild?.name} - Score: ${paperScore}/100`);
-      console.log(`Title: ${paperMetadata.title || 'Unknown'}`);
-      console.log(`DOI: ${paperMetadata.doi || 'Unknown'}`);
-      console.log(`Authors: ${paperMetadata.authors || 'Unknown'}`);
-      console.log(`Year: ${paperMetadata.year || 'Unknown'}`);
-    } else if (paperAnalysis && paperAnalysis.isScientificPaper) {
-      console.log(
-        `Scientific paper PDF detected in ${message.guild?.name} - Score: ${paperAnalysis.confidence}/100`
-      );
-      console.log(`Filename: ${pdfAttachment?.name || 'Unknown'}`);
-      console.log(
-        `Size: ${pdfAttachment?.size ? (pdfAttachment.size / 1024).toFixed(2) + 'KB' : 'Unknown'}`
-      );
-      console.log(`Reason: ${paperAnalysis.reason}`);
-    } else {
-      console.log(`Scientific paper detected in ${message.guild?.name}. Score: ${paperScore}/100`);
-    }
-
-    // Respond with a confirmation reaction to let users know the paper was counted
-    try {
-      await message.react('📚');
-    } catch (error) {
-      console.error('Failed to react to paper message:', error);
-    }
-
-    // If we detect a paper, update the API more frequently
-    // This helps users level up faster when they're actively sharing research
-    if (stats.papersShared % 5 === 0) {
-      notifyPortalAPI(guildId, 'stats_update').catch(console.error);
-    }
-
-    // Check for level-up requirements after paper detection - papers are key metrics
-    await checkGuildLevelRequirements(guildId);
-  }
-
-  // Update quality score using weighted average (90% old, 10% new)
-  // Only apply quality updates from non-spam messages
-  if (isQualityMessage) {
-    stats.qualityScore = 0.9 * stats.qualityScore + 0.1 * finalQuality;
-  }
-
-  // Log message quality info for debugging
-  if (process.env.DEBUG) {
+  // Log message processing
+  if (message.guild) {
     console.log(
-      `Message quality: raw=${rawQuality.toFixed(1)}, penalty=${userFrequency.penaltyFactor.toFixed(1)}, similarity=${similarityPenalty.toFixed(1)}, final=${finalQuality.toFixed(1)}, isQuality=${isQualityMessage}, isLowValue=${isLowValue}`
+      `Processing message in ${message.guild.name}${isSpam ? ' (filtered as low-value)' : ''}`
     );
-  }
-
-  // Update stats to API every 50 quality messages
-  if (isQualityMessage && stats.messageCount % 50 === 0) {
-    notifyPortalAPI(guildId, 'stats_update').catch(console.error);
-  }
-
-  // Check level requirements when message count hits thresholds
-  // This triggers level checks at key milestone points
-  if (
-    isQualityMessage &&
-    (stats.messageCount === 50 ||
-      stats.messageCount === 100 ||
-      stats.messageCount === 150 ||
-      stats.messageCount % 25 === 0)
-  ) {
+  } else {
     console.log(
-      `[Discord Bot] Message milestone reached (${stats.messageCount}) - checking level requirements`
+      `Processing message in guild ID ${guildId}${isSpam ? ' (filtered as low-value)' : ''}`
     );
-    await checkGuildLevelRequirements(guildId);
   }
 });
 
@@ -543,11 +624,19 @@ async function sendProgressInfo(message: Message, stats: any, guildId: string): 
 }
 
 /**
- * Fetch Discord info from the API
+ * Fetches Discord information from the Portal API
+ * @param guildId The guild ID to fetch info for, or 'all' to fetch all records
+ * @returns Discord information or null if not found
  */
 async function fetchDiscordInfoFromAPI(guildId: string): Promise<any> {
   try {
-    const response = await axios.get(`${PORTAL_API_URL}/api/discord/info/${guildId}`, {
+    // Different endpoint for fetching all Discord records
+    const endpoint =
+      guildId === 'all'
+        ? `${PORTAL_API_URL}/api/discord/all-records`
+        : `${PORTAL_API_URL}/api/discord/info/${guildId}`;
+
+    const response = await axios.get(endpoint, {
       headers: {
         Authorization: `Bearer ${API_KEY}`,
       },
@@ -555,7 +644,10 @@ async function fetchDiscordInfoFromAPI(guildId: string): Promise<any> {
 
     return response.data;
   } catch (error) {
-    console.error('Error fetching Discord info:', error);
+    console.error(
+      `Error fetching Discord info for ${guildId === 'all' ? 'all guilds' : `guild ${guildId}`}:`,
+      error
+    );
     return null;
   }
 }
@@ -735,53 +827,28 @@ async function notifyPortalAPI(
       return;
     }
 
-    // First, fetch current database stats to get the latest paper count
-    let currentDatabaseStats = {
-      papersShared: 0,
-    };
-
-    try {
-      // Fetch current stats from the API to get the latest paper count
-      const response = await axios.get(
-        `${PORTAL_API_URL}/api/debug/discord-stats/${guildId}?apiKey=${API_KEY}`
-      );
-      if (
-        response.data &&
-        response.data.success &&
-        response.data.discord &&
-        response.data.discord.databaseStats
-      ) {
-        currentDatabaseStats = {
-          papersShared: response.data.discord.databaseStats.papersShared || 0,
-        };
-        console.log(
-          `[Discord Bot] Retrieved current database stats for guild ${guildId}: ${currentDatabaseStats.papersShared} papers`
-        );
-      }
-    } catch (error) {
-      console.error(
-        `[Discord Bot] Failed to fetch current database stats for guild ${guildId}:`,
-        error
-      );
-      // Continue anyway, we'll just use our local stats
-    }
+    // Always fetch current stats from the database
+    const discordRecord = await prisma.discord.findFirst({ where: { serverId: guildId } });
+    const dbMessages = discordRecord?.messagesCount || 0;
+    const dbPapers = discordRecord?.papersShared || 0;
+    const dbQuality = discordRecord?.qualityScore || 50;
 
     const stats = guildStats.get(guildId) || {
-      messageCount: 0,
-      papersShared: 0,
-      qualityScore: 50,
+      messageCount: dbMessages,
+      papersShared: dbPapers,
+      qualityScore: dbQuality,
       lastMessageTimestamp: new Date(),
       activeUsers: new Set<string>(),
     };
 
-    // Prepare payload - use database paper count if available
+    // Prepare payload - always use database values
     const payload = {
       event: eventType,
       guildId: guild.id,
       memberCount: guild.memberCount,
-      messagesCount: stats.messageCount,
-      papersShared: currentDatabaseStats.papersShared, // Use database value instead of in-memory
-      qualityScore: Math.round(stats.qualityScore),
+      messagesCount: dbMessages,
+      papersShared: dbPapers,
+      qualityScore: Math.round(dbQuality),
       activeUsers: stats.activeUsers.size,
       apiKey: API_KEY,
     };
@@ -789,33 +856,15 @@ async function notifyPortalAPI(
     // Determine endpoint based on event type
     let endpoint;
     if (eventType === 'guildCreate') {
-      endpoint = '/discord/bot-installed';
+      endpoint = '/api/discord/bot-installed';
       console.log(`Notifying API of bot installation in ${guild.name}`);
     } else {
-      endpoint = '/discord/stats-update';
+      endpoint = '/api/discord/stats-update';
       console.log(`Updating stats for ${guild.name}: ${JSON.stringify(payload)}`);
     }
 
     // Send to API
-    const response = await axios.post(`${PORTAL_API_URL}${endpoint}`, payload);
-    console.log(`API response (${eventType}):`, response.data);
-
-    // Update in-memory storage with database paper count to keep in sync
-    if (eventType === 'stats_update' && currentDatabaseStats.papersShared > 0) {
-      const guildStat = guildStats.get(guildId);
-      if (guildStat) {
-        // Only update if database count is higher (never decrease)
-        if (currentDatabaseStats.papersShared > guildStat.papersShared) {
-          guildStat.papersShared = currentDatabaseStats.papersShared;
-          console.log(
-            `[Discord Bot] Updated in-memory paper count for guild ${guildId} to match database: ${guildStat.papersShared}`
-          );
-        }
-      }
-    }
-
-    // Also notify the bot events endpoint for internal processing
-    await axios.post(`${PORTAL_API_URL}/api/discord/bot-events`, payload);
+    await axios.post(`${PORTAL_API_URL}${endpoint}`, payload);
   } catch (error) {
     console.error(`Failed to notify Portal API for guild ${guildId}:`, error);
   }
@@ -879,6 +928,59 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
+// Function to update server stats directly in the database
+async function updateDiscordStats(guildId: string) {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) {
+    console.warn(`Cannot update stats: Guild ${guildId} not found in cache`);
+    return;
+  }
+
+  try {
+    // Always fetch the latest from the database
+    const discordRecord = await prisma.discord.findFirst({ where: { serverId: guildId } });
+    if (!discordRecord) {
+      console.warn(
+        `[Discord Stats] Could not find Discord record for server ID: ${guildId}. Stats will not be saved.`
+      );
+      return;
+    }
+
+    // Use DB values as source of truth
+    const updatedMessageCount = discordRecord.messagesCount;
+    const updatedPapersShared = discordRecord.papersShared;
+    const updatedQualityScore = discordRecord.qualityScore;
+
+    // Update stats directly (no change, just to keep updatedAt fresh)
+    const updatedRecord = await prisma.discord.update({
+      where: { id: discordRecord.id },
+      data: {
+        memberCount: guild.memberCount,
+        papersShared: updatedPapersShared,
+        messagesCount: updatedMessageCount,
+        qualityScore: updatedQualityScore,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Update in-memory counters for compatibility, but never use as source of truth
+    messageCountByGuild[guildId] = updatedRecord.messagesCount;
+    papersSharedByGuild[guildId] = updatedRecord.papersShared;
+    qualityScoreByGuild[guildId] = updatedRecord.qualityScore;
+
+    // Get user and check for level up
+    const project = await prisma.project.findUnique({
+      where: { id: discordRecord.projectId },
+    });
+    if (project) {
+      await checkAndUpdateUserLevel(project);
+    }
+  } catch (error) {
+    console.error(`[Discord Stats] Failed to update stats in database for ${guild?.name}:`, error);
+    throw error;
+  }
+}
+
 /**
  * Checks if a guild's metrics meet level-up requirements and triggers level advancement
  * This is called after significant events like paper detection or message threshold reached
@@ -886,7 +988,7 @@ process.on('SIGINT', async () => {
 async function checkGuildLevelRequirements(guildId: string): Promise<void> {
   try {
     // Get guild stats from database via API
-    const response = await axios.post(`${PORTAL_API_URL}/discord/check-level-requirements`, {
+    const response = await axios.post(`${PORTAL_API_URL}/api/discord/check-level-requirements`, {
       guildId: guildId,
       apiKey: API_KEY,
       source: 'discord_bot',
@@ -903,4 +1005,141 @@ async function checkGuildLevelRequirements(guildId: string): Promise<void> {
   }
 }
 
+// Function to initialize the Discord bot
+export function initDiscordBot() {
+  console.log('Discord bot initialization requested');
+
+  // Initialize event listeners if not already set up
+  if (!client.isReady()) {
+    // Set up event handlers
+    client.once('ready', () => {
+      console.log(`[Discord Bot] Logged in as ${client.user?.tag}`);
+      console.log(`[Discord Bot] Serving ${client.guilds.cache.size} guilds`);
+
+      // Initialize stats for all guilds from database
+      initializeAllGuildsFromDatabase();
+
+      // Start periodic updates
+      setInterval(
+        () => {
+          updateAllGuildStats();
+        },
+        5 * 60 * 1000
+      ); // Update every 5 minutes
+    });
+
+    // Handle guild creation (bot added to new server)
+    client.on('guildCreate', async (guild) => {
+      console.log(`[Discord Bot] Added to guild: ${guild.name} (${guild.id})`);
+
+      // Initialize stats for this guild
+      initializeGuildStats(guild);
+
+      try {
+        // Import dynamically to avoid circular dependencies
+        const wsService = await import('./websocket/ws.service');
+        console.log(
+          `[Discord Bot] Successfully imported ws.service, calling handleGuildCreate for guild ${guild.id}`
+        );
+
+        // Use the ws.service handler to process the event and notify users
+        await wsService.handleGuildCreate(guild.id, guild.name, guild.memberCount);
+        console.log(`[Discord Bot] handleGuildCreate completed for guild ${guild.id}`);
+      } catch (error) {
+        console.error('[Discord Bot] Error calling handleGuildCreate:', error);
+        // Even if there's an error with the WebSocket service, still try to notify the Portal API
+      }
+
+      try {
+        // Also notify the Portal API about this new guild
+        console.log(`[Discord Bot] Notifying Portal API about new guild ${guild.id}`);
+        await notifyPortalAPI(guild.id, 'guildCreate');
+        console.log(`[Discord Bot] Portal API notification completed for guild ${guild.id}`);
+      } catch (apiError) {
+        console.error('[Discord Bot] Error notifying Portal API:', apiError);
+      }
+    });
+
+    // Login to Discord
+    client
+      .login(DISCORD_BOT_TOKEN)
+      .then(() => console.log('[Discord Bot] Login successful'))
+      .catch((error) => console.error('[Discord Bot] Login failed:', error));
+  }
+
+  return client;
+}
+
+// Function to initialize all guilds with data from database
+async function initializeAllGuildsFromDatabase() {
+  try {
+    console.log(`[Discord Bot] Initializing all guilds with database values...`);
+
+    // Attempt to fetch Discord records from database via API
+    let discordRecords = await fetchDiscordInfoFromAPI('all');
+
+    // If the all-records endpoint fails or returns null, try to fetch individually
+    if (!discordRecords) {
+      console.log(`[Discord Bot] Bulk fetch failed, trying individual fetches...`);
+      discordRecords = [];
+
+      // For each guild, fetch its data individually
+      for (const guild of client.guilds.cache.values()) {
+        const record = await fetchDiscordInfoFromAPI(guild.id);
+        if (record) {
+          discordRecords.push(record);
+        }
+      }
+    }
+
+    if (Array.isArray(discordRecords) && discordRecords.length > 0) {
+      console.log(`[Discord Bot] Found ${discordRecords.length} Discord records from API`);
+
+      // For each guild the bot is in
+      client.guilds.cache.forEach((guild) => {
+        console.log(`[Discord Bot] Initializing tracking for guild: ${guild.name} (${guild.id})`);
+
+        // Find matching record from API response
+        const matchingRecord = discordRecords.find((record) => record.serverId === guild.id);
+
+        // Initialize the guild stats
+        initializeGuildStats(guild);
+
+        // If we have database records for this guild, update the stats manually
+        if (matchingRecord) {
+          console.log(`[Discord Bot] Using existing stats from database for guild ${guild.id}`);
+
+          // Update the stats with database values if available
+          const guildStat = guildStats.get(guild.id);
+          if (guildStat && matchingRecord) {
+            guildStat.messageCount = matchingRecord.messagesCount || 0;
+            guildStat.papersShared = matchingRecord.papersShared || 0;
+            guildStat.qualityScore = matchingRecord.qualityScore || 50;
+
+            // Update the stats map with new values
+            guildStats.set(guild.id, guildStat);
+          }
+        }
+      });
+    } else {
+      console.log(`[Discord Bot] No Discord records found from API, initializing with defaults`);
+
+      // Initialize all guilds with default values
+      client.guilds.cache.forEach((guild) => {
+        initializeGuildStats(guild);
+      });
+    }
+
+    console.log(`[Discord Bot] Guild initialization complete`);
+  } catch (error) {
+    console.error(`[Discord Bot] Error initializing guilds:`, error);
+
+    // Initialize all guilds with default values on error
+    client.guilds.cache.forEach((guild) => {
+      initializeGuildStats(guild);
+    });
+  }
+}
+
+// Export the client
 export { client };

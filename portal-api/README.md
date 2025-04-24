@@ -507,3 +507,38 @@ To use the NFT functionality, you need to set up:
 
 - `NFT_MINTER_PRIVATE_KEY` - The private key for the wallet that will mint NFTs
 - `OPENAI_API_KEY` - API key for generating NFT images
+
+## Email Notifications
+
+The BioDAO CoreAgent API includes an email notification system that sends emails to users when they level up and to the Bio team when a user reaches the sandbox level (Level 4).
+
+### Configuration
+
+To configure the email system, add the following variables to your `.env` file:
+
+```
+# Mailgun Configuration
+MAILGUN_API_KEY="your_mailgun_api_key"
+MAILGUN_DOMAIN="your_mailgun_domain.mailgun.org"
+MAILGUN_REGION="us" # or "eu" for European region
+FROM_EMAIL="BioDAO <noreply@your_domain.com>"
+SANDBOX_NOTIFICATION_EMAIL="team@your_domain.com"
+```
+
+### Testing Emails
+
+You can test the email functionality by running:
+
+```bash
+npx ts-node src/test-email.ts
+```
+
+### Email Types
+
+1. **Level Up Emails**: Sent to users when they reach a new level in their BioDAO journey. These emails include congratulations and information about the next level's requirements.
+
+2. **Sandbox Notification Emails**: Sent to the Bio team when a user reaches Level 4 (the sandbox level). These emails include the user's project details and community statistics.
+
+### Implementation
+
+The email functionality is implemented in `src/services/email.service.ts` using Mailgun.js. The service is integrated with the level-up process in the WebSocket handler.

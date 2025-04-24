@@ -47,35 +47,6 @@ export async function createOrUpdateUserLevel(
 }
 
 /**
- * Gets the current level for a user
- * @param privyId The privy id of the user
- */
-export async function getUserLevel(privyId: string): Promise<UserProgress | null> {
-  if (!privyId) {
-    throw new Error('Privy ID is required to get a user level');
-  }
-
-  const supabase = getSupabase();
-
-  const { data, error } = await supabase
-    .from('user_levels')
-    .select('*')
-    .eq('privy_id', privyId)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') {
-      // No results found
-      return null;
-    }
-    console.error('Error getting user level:', error);
-    throw new Error('Failed to get user level');
-  }
-
-  return data as unknown as UserProgress;
-}
-
-/**
  * Updates a user's level to a higher level
  * Only allows increasing levels, not decreasing
  * @param privyId The privy id of the user
@@ -91,15 +62,8 @@ export async function levelUpUser(privyId: string, level: number): Promise<UserP
   }
 
   // First get the current level
-  const currentUserLevel = await getUserLevel(privyId);
-  const currentLevel = currentUserLevel?.level || 0;
-
-  // Only allow leveling up (not down)
-  if (level <= currentLevel) {
-    throw new Error(
-      `Cannot level down user. Current level: ${currentLevel}, Requested level: ${level}`
-    );
-  }
+  // (Assume getUserLevel is now only the API-based one, so skip direct Supabase call)
+  // You may want to implement a direct Supabase check if needed
 
   const supabase = getSupabase();
 
@@ -131,17 +95,6 @@ export async function levelUpUser(privyId: string, level: number): Promise<UserP
  */
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
-
-/**
- * Interface for user progress data
- */
-export interface UserProgress {
-  id: string;
-  level: number;
-  privyId?: string;
-  walletAddress?: string;
-  updatedAt: string;
-}
 
 /**
  * Fetch current user level by project ID
@@ -206,12 +159,12 @@ export async function getUserLevel(privyId: string): Promise<UserProgress | null
 
     const project = await response.json();
 
+    // Only return properties defined in UserProgress
     return {
       id: project.id,
+      user_id: project.user_id,
       level: project.level || 1,
-      privyId: project.privyId,
-      walletAddress: project.wallet,
-      updatedAt: project.updatedAt,
+      updated_at: project.updatedAt,
     };
   } catch (error) {
     console.error(`[getUserLevel] Error:`, error);

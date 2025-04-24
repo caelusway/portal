@@ -44,6 +44,7 @@ import { ref } from 'process';
 interface WebSocketMessage {
   type: string;
   content?: string;
+  userId?: string;
   [key: string]: any;
 }
 
@@ -85,7 +86,15 @@ interface LevelProgress {
   };
 }
 
-// Add typing animation CSS
+// Add interface for chat messages from the server
+interface ServerChatMessage {
+  id?: string;
+  content: string;
+  isFromAgent: boolean;
+  timestamp?: string | Date;
+  actionTaken?: string;
+}
+
 const typingAnimationCSS = `
   @keyframes typing {
     0% { content: '.'; }
@@ -106,16 +115,6 @@ const typingAnimationCSS = `
     padding-left: 0.5rem;
   }
   
-  /* Guidance badge */
-  .guidance-badge {
-    display: inline-block;
-    font-size: 10px;
-    background-color: #3b82f6;
-    color: white;
-    padding: 1px 6px;
-    border-radius: 4px;
-    margin-bottom: 6px;
-  }
 
   /* Markdown styles */
   .markdown-content {
@@ -203,8 +202,9 @@ const MemoizedMessageContent = React.memo(
   ({ message, shouldAnimate }: { message: ChatMessage; shouldAnimate: boolean }) => {
     // Function to normalize text content by removing excessive line breaks
     const normalizeContent = (content: string) => {
-      // Replace 3 or more newlines with just 2 newlines (equivalent to one paragraph break)
-      return content.replace(/\n{3,}/g, '');
+      if (!content) return '';
+
+      return content;
     };
 
     // Function to detect and convert URLs to clickable links in plain text
@@ -220,8 +220,8 @@ const MemoizedMessageContent = React.memo(
     const MarkdownContent = ({ content }: { content: string }) => (
       <div className="markdown-content">
         <ReactMarkdown
-          rehypePlugins={[rehypeRaw]}
           remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw]}
           components={{
             // Customize link rendering
             a: ({ node, href, ...props }) => (
@@ -318,42 +318,7 @@ export function CoreAgent() {
   const { level, project, discordStats, nfts, sessionId, progress, error, refresh } =
     useDashboardData();
 
-  const [isConnected, setIsConnected] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [userLevel, setUserLevel] = useState(1);
-
-  const [levelProgress, setLevelProgress] = useState<LevelProgress | null>(null);
-  const [showDetails, setShowDetails] = useState(() => {
-    const savedPreference = localStorage.getItem('showDetailsSidebar');
-    return savedPreference === null ? true : savedPreference === 'true';
-  });
-  const [projectId, setProjectId] = useState<string | null>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [lastLevelCheck, setLastLevelCheck] = useState<number>(Date.now());
-  const [levelPollingEnabled, setLevelPollingEnabled] = useState<boolean>(true);
-
-  // Add states for NFT minting and image generation status
-  const [isMintingNFT, setIsMintingNFT] = useState(false);
-  const [mintingNFTType, setMintingNFTType] = useState<string | null>(null);
-
-  // Add state for controlling data refresh
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
-
-  // Add all refs at the top of the component for better organization
-  const refreshIntervalRef = useRef<number | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const animatedMessageIdRef = useRef<string | null>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  // Add the data fetched ref here with the other refs
-  const dataFetchedRef = useRef<boolean>(false);
-
+  // Add database methods
   const {
     getProjectByWallet,
     getChatSessionsByProjectId,
@@ -362,10 +327,394 @@ export function CoreAgent() {
     createChatMessage,
   } = useDatabase();
 
+  // Add all refs at the top of the component for better organization
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const animatedMessageIdRef = useRef<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const dataFetchedRef = useRef<boolean>(false);
+  const refreshIntervalRef = useRef<any>(null);
+  const connectionTimeoutRef = useRef<any>(null);
+  const authTimeoutRef = useRef<any>(null);
+
+  // State for scroll and auto-refresh
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+
+  const getDiscordStats = () => {};
+
   // Get embedded wallet
   const embeddedWallet = wallets?.find(
     (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
   );
+
+  // Add missing NFT minting state
+  const [isMintingNFT, setIsMintingNFT] = useState(false);
+  const [mintingNFTType, setMintingNFTType] = useState<string | null>(null);
+
+  // State for Discord stats and user level (for real-time sidebar updates)
+  const [sidebarDiscordStats, setSidebarDiscordStats] = useState(discordStats);
+  const [sidebarUserLevel, setSidebarUserLevel] = useState(level);
+
+  // WebSocket connection and handlers
+  const wsRef = useRef<WebSocket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [userLevel, setUserLevel] = useState(1);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
+
+  // Generate a unique ID for new messages
+  const generateId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // State for input value
+  const [inputValue, setInputValue] = useState('');
+
+  // Add loading state for WebSocket connection, authentication, and chat history
+  const [wsLoading, setWsLoading] = useState(true);
+  const [chatHistoryLoading, setChatHistoryLoading] = useState(true);
+
+  // Utility: Build authentication payload
+  const buildAuthPayload = (user: any, walletAddress: string | null) => {
+    return {
+      type: 'auth',
+      ...(walletAddress ? { wallet: walletAddress } : {}),
+      ...(user?.id ? { privyId: user.id } : {}),
+      ...(user?.email ? { email: user.email } : {}),
+    };
+  };
+
+  // Utility: Get wallet address from user/wallets
+  const getWalletAddress = (user: any, wallets: any, embeddedWallet: any): string | null => {
+    if (embeddedWallet?.address) return embeddedWallet.address;
+    if (user?.wallet?.address) return user.wallet.address;
+    if (wallets && wallets.length > 0) return wallets[0].address;
+    if (user?.wallet && typeof user.wallet === 'string') return user.wallet;
+    return null;
+  };
+
+  // Derived state: is authentication info ready?
+  const isAuthReady = !!(getWalletAddress(user, wallets, embeddedWallet) || user?.id);
+
+  useEffect(() => {
+    if (autoRefreshEnabled) {
+      refreshIntervalRef.current = setInterval(() => {
+        refresh();
+      }, 4000);
+    } else {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+    }
+  }, [autoRefreshEnabled]);
+
+  // Send message to CoreAgent
+  const sendMessage = async (content: string) => {
+    if (!wsRef.current || !isAuthenticated || !content.trim()) return;
+    // Compose message payload
+    const message: WebSocketMessage = {
+      type: 'message',
+      content,
+      ...(typeof projectId === 'string' ? { userId: projectId } : {}),
+    };
+    // Add the user message to the UI
+    const newMessage = {
+      id: generateId(),
+      content: content,
+      isFromAgent: false,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, newMessage]);
+    setInputValue('');
+    setIsLoading(true);
+    wsRef.current.send(JSON.stringify(message));
+  };
+
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage(inputValue);
+  };
+
+  // Handle textarea key press (Shift+Enter for new line, Enter to send)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (inputValue.trim()) {
+        sendMessage(inputValue);
+      }
+    }
+  };
+
+  // Update sidebar state in real time from WebSocket messages
+  useEffect(() => {
+    setSidebarDiscordStats(discordStats);
+  }, [discordStats]);
+  useEffect(() => {
+    setSidebarUserLevel(level);
+  }, [level]);
+
+  // Update sidebar state from WebSocket events
+  const handleWebSocketMessage = useCallback(
+    (data: any) => {
+      switch (data.type) {
+        case 'auth_success':
+          setIsAuthenticated(true);
+          setProjectId(data.userId);
+          setUserLevel(data.level || 1);
+          setSidebarUserLevel(data.level || 1);
+          sessionStorage.setItem('authAttempts', '0');
+          toast({
+            title: 'Connected',
+            description: 'Authenticated with CoreAgent',
+            duration: 2000,
+          });
+          break;
+        case 'error':
+          setIsAuthenticated(false);
+          toast({
+            title: 'Error',
+            description: data.message || 'An error occurred',
+            variant: 'destructive',
+            duration: 5000,
+          });
+          break;
+        case 'level_up':
+          setUserLevel(data.newLevel || userLevel + 1);
+          setSidebarUserLevel(data.newLevel || userLevel + 1);
+          toast({
+            title: 'Level Up!',
+            description: data.message || 'You advanced a level!',
+            duration: 5000,
+          });
+          break;
+        case 'level':
+          setUserLevel(data.level || userLevel);
+          setSidebarUserLevel(data.level || userLevel);
+          break;
+        case 'nfts':
+          refresh();
+          break;
+        case 'discord_info':
+          if (data.discord) {
+            setSidebarDiscordStats(data.discord);
+            refresh();
+          }
+          break;
+        case 'discord_bot_installed':
+          if (data.discord) {
+            setSidebarDiscordStats(data.discord);
+            refresh();
+          }
+          break;
+        case 'chat_history':
+          if (data.messages && Array.isArray(data.messages)) {
+            const formattedMessages = data.messages.map((msg: ServerChatMessage) => ({
+              id: msg.id || generateId(),
+              content: msg.content,
+              isFromAgent: msg.isFromAgent,
+              timestamp: new Date(msg.timestamp || Date.now()),
+              isGuidance: msg.actionTaken === 'GUIDANCE',
+            }));
+            setMessages(formattedMessages);
+            refresh();
+          }
+          break;
+        case 'message':
+          // Prevent duplicate messages
+          const messageId = data.messageId || generateId();
+          if (!processedMessageIds.has(messageId)) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: messageId,
+                content: data.content,
+                isFromAgent: true,
+                timestamp: new Date(),
+                isGuidance: data.action === 'GUIDANCE',
+              },
+            ]);
+            setProcessedMessageIds((prev) => new Set(prev).add(messageId));
+            refresh();
+          }
+          setIsLoading(false);
+          break;
+        default:
+          // Handle other types as needed
+          break;
+      }
+    },
+    [userLevel, processedMessageIds, refresh]
+  );
+
+  // --- WebSocket Setup ---
+  const reconnectAttemptsRef = useRef(0);
+  const maxReconnectAttempts = 5;
+  const reconnectBaseDelay = 2000; // ms
+
+  // Store latest user/wallets/embeddedWallet in refs for authentication
+  const userRef = useRef(user);
+  const walletsRef = useRef(wallets);
+  const embeddedWalletRef = useRef(embeddedWallet);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+  useEffect(() => {
+    walletsRef.current = wallets;
+  }, [wallets]);
+  useEffect(() => {
+    embeddedWalletRef.current = embeddedWallet;
+  }, [embeddedWallet]);
+
+  // WebSocket connection only on mount (or if URL changes)
+  useEffect(() => {
+    let ws;
+    const API_URL = import.meta.env.VITE_PUBLIC_WS_URL || 'ws://localhost:3001';
+    const wsUrl = API_URL;
+    const connect = () => {
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onopen = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      setIsConnected(false);
+      setIsAuthenticated(false);
+      setWsLoading(true); // Set loading true when starting connection
+
+      ws.onopen = () => {
+        setIsConnected(true);
+        setWsLoading(false); // Set loading false as soon as connected
+        refresh();
+        reconnectAttemptsRef.current = 0;
+        if (connectionTimeoutRef.current) {
+          window.clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
+      };
+
+      ws.onclose = (event) => {
+        setIsConnected(false);
+        setIsAuthenticated(false);
+        wsRef.current = null;
+        setWsLoading(true); // Set loading true when disconnected
+        if (connectionTimeoutRef.current) {
+          window.clearTimeout(connectionTimeoutRef.current);
+          connectionTimeoutRef.current = null;
+        }
+        if (authTimeoutRef.current) {
+          window.clearTimeout(authTimeoutRef.current);
+          authTimeoutRef.current = null;
+        }
+        console.warn('WebSocket closed:', event);
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          const delay = reconnectBaseDelay * Math.pow(2, reconnectAttemptsRef.current);
+          reconnectAttemptsRef.current += 1;
+          setTimeout(connect, delay);
+        } else {
+          toast({
+            title: 'WebSocket Disconnected',
+            description: 'Unable to reconnect after several attempts. Please refresh the page.',
+            variant: 'destructive',
+            duration: 10000,
+          });
+        }
+      };
+
+      ws.onerror = (error) => {
+        setIsConnected(false);
+        setIsAuthenticated(false);
+        wsRef.current = null;
+        setWsLoading(true); // Set loading true on error
+        console.error('WebSocket error:', error);
+        toast({
+          title: 'WebSocket Error',
+          description: 'Could not connect to server. (Insufficient resources?)',
+          variant: 'destructive',
+          duration: 5000,
+        });
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleWebSocketMessage(data);
+        } catch (err) {
+          console.error('Error parsing WebSocket message:', err);
+        }
+      };
+
+      connectionTimeoutRef.current = setTimeout(() => {
+        if (wsRef.current && wsRef.current.readyState !== WebSocket.OPEN) {
+          wsRef.current.close();
+          wsRef.current = null;
+          setIsConnected(false);
+          setIsAuthenticated(false);
+          setWsLoading(true); // Set loading true on timeout
+          toast({
+            title: 'Connection Timeout',
+            description: 'Could not connect to server.',
+            variant: 'destructive',
+            duration: 5000,
+          });
+        }
+      }, 15000);
+    };
+    connect();
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onopen = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (connectionTimeoutRef.current) window.clearTimeout(connectionTimeoutRef.current);
+      if (authTimeoutRef.current) window.clearTimeout(authTimeoutRef.current);
+    };
+  }, []);
+
+  // Authenticate only when websocket is open and auth info is ready
+  useEffect(() => {
+    if (
+      isConnected &&
+      wsRef.current &&
+      wsRef.current.readyState === WebSocket.OPEN &&
+      isAuthReady
+    ) {
+      authenticateWebSocket();
+    }
+  }, [isConnected, isAuthReady]);
+
+  // --- Authentication ---
+  const authenticateWebSocket = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const walletAddress = getWalletAddress(
+      userRef.current,
+      walletsRef.current,
+      embeddedWalletRef.current
+    );
+    if (!walletAddress && !userRef.current?.id) {
+      toast({
+        title: 'Authentication Error',
+        description: 'No wallet or user ID found.',
+        variant: 'destructive',
+        duration: 5000,
+      });
+      return;
+    }
+    const payload = buildAuthPayload(userRef.current, walletAddress);
+    wsRef.current.send(JSON.stringify(payload));
+  }, []);
 
   // Scroll management
   const scrollToBottom = useCallback(() => {
@@ -385,30 +734,13 @@ export function CoreAgent() {
     }
   }, []);
 
-  // Update userLevel whenever level changes or when project data loads
-  useEffect(() => {
-    // Only update if level is available and valid
-    if (level && typeof level === 'number') {
-      setUserLevel(level);
-    }
-  }, [level]);
-
-  useEffect(() => {
-    if (projectId && userLevel) {
-      getDiscordStats();
-    }
-  }, [projectId, userLevel]);
-
   // Load chat history when session ID changes
   useEffect(() => {
     if (!sessionId) return;
-
+    setChatHistoryLoading(true);
     const loadChatHistory = async () => {
       try {
-        console.log('Loading chat history for session:', sessionId);
         const messages = await getChatMessagesBySessionId(sessionId);
-        console.log('Retrieved messages:', messages);
-
         if (messages && Array.isArray(messages)) {
           const formattedMessages = messages.map((msg) => ({
             id: msg.id,
@@ -417,973 +749,63 @@ export function CoreAgent() {
             timestamp: new Date(msg.timestamp || Date.now()),
             isGuidance: msg.actionTaken === 'GUIDANCE',
           }));
-
-          console.log('Setting formatted messages:', formattedMessages.length);
           setMessages(formattedMessages);
-          setTimeout(scrollToBottom, 100);
-        } else {
-          console.log('No messages received from API or invalid format');
+          refresh();
+          setChatHistoryLoading(false);
+          scrollToBottom();
         }
       } catch (error) {
         console.error('Error loading chat history:', error);
       }
     };
-
     loadChatHistory();
-  }, [sessionId, scrollToBottom, getChatMessagesBySessionId]);
+  }, [sessionId, getChatMessagesBySessionId]);
 
-  // Generate a unique ID for new messages
-  const generateId = () => `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-  // Add useEffect for polling mechanism
+  // Always scroll to bottom when chat history loads or messages change
   useEffect(() => {
-    // Only set up polling if authenticated and auto-refresh is enabled
-    if (isAuthenticated && autoRefreshEnabled && wsRef.current) {
-      console.log('Setting up data polling for sidebar');
-
-      // Clear any existing interval
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
-
-      // Set up polling for sidebar data every 10 seconds
-      refreshIntervalRef.current = setInterval(() => {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          console.log('Refreshing sidebar data');
-          fetchNFTs();
-          getDiscordStats();
-          checkProgress();
-          fetchCurrentLevel(projectId || '');
-        }
-      }, 5000) as unknown as number;
-
-      return () => {
-        if (refreshIntervalRef.current) {
-          clearInterval(refreshIntervalRef.current);
-          refreshIntervalRef.current = null;
-        }
-      };
-    }
-
-    return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-    };
-  }, [isAuthenticated, autoRefreshEnabled]);
-
-  // Also update WebSocket setup to refresh data when connection is re-established
-  useEffect(() => {
-    // Set up WebSocket connection
-    const setupWebSocket = () => {
-      const wsUrl = import.meta.env.VITE_PUBLIC_WS_URL || 'ws://localhost:3001';
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        setIsConnected(true);
-
-        // Authenticate immediately when the connection opens
-        if (user) {
-          wsRef.current = ws;
-          setTimeout(() => {
-            authenticateUser();
-          }, 100);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket disconnected');
-        setIsConnected(false);
-
-        // Try to reconnect after 5 seconds
-        setTimeout(setupWebSocket, 5000);
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        setIsConnected(false);
-        ws.close();
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          handleWebSocketMessage(data);
-        } catch (error) {
-          console.error('Error handling WebSocket message:', error);
-        }
-      };
-
-      return ws;
-    };
-
-    // Set up WebSocket if user is authenticated
-    if (user) {
-      const ws = setupWebSocket();
-      wsRef.current = ws;
-
-      return () => {
-        ws.close();
-        wsRef.current = null;
-      };
-    }
-  }, [user]);
-
-  useEffect(() => {
-    forceUpdate();
-    checkProgress();
-    fetchCurrentLevel(projectId || '');
-  }, [autoRefreshEnabled, userLevel, projectId]);
-
-  const forceUpdate = React.useReducer(() => ({}), {})[1];
-
-  // Authenticate user with the WebSocket server
-  const authenticateUser = () => {
-    if (!wsRef.current || !user || !embeddedWallet) return;
-
-    // Prefer embedded wallet address if available
-    const walletAddress = embeddedWallet.address;
-
-    const authPayload: WebSocketMessage = {
-      type: 'auth',
-      wallet: walletAddress,
-      privyId: user.id,
-    };
-
-    console.log('Authenticating with wallet:', walletAddress);
-    wsRef.current.send(JSON.stringify(authPayload));
-  };
-
-  const saveLoadingError = (error: any) => {
-    console.error('Error in WebSocket operation:', error);
-    setIsLoading(false); // Ensure loading is reset on error
-  };
-
-  // Handle incoming WebSocket messages
-  const handleWebSocketMessage = async (data: any) => {
-    console.log('WebSocket message received:', data);
-
-    switch (data.type) {
-      case 'auth_success':
-        setIsAuthenticated(true);
-        setUserLevel(data.level || 1);
-        setProjectId(data.userId);
-
-        // No need to load chat history here since we do it in loadProjectData
-        if (data.userId) {
-          console.log('Auth success for user:', data.userId);
-
-          // Now, load data immediately on auth success
-          console.log('Initiating data fetch for authenticated user');
-
-          // First, fetch Discord stats via REST API
-          const fetchDiscordStatsAsync = async () => {
-            try {
-              console.log('Fetching Discord stats for project:', data.userId);
-              const stats = await fetchDiscordStats(data.userId);
-              if (stats) {
-                refresh();
-                console.log('Discord stats set successfully');
-              }
-            } catch (error) {
-              console.error('Error fetching Discord stats:', error);
-            }
-          };
-
-          // Execute the Discord stats fetch
-          fetchDiscordStatsAsync();
-
-          // Then, after a short delay, request NFTs via WebSocket
-          setTimeout(() => {
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-              try {
-                console.log('Requesting NFTs via WebSocket');
-                wsRef.current.send(JSON.stringify({ type: 'get_nfts' }));
-
-                // After another delay, check progress
-                setTimeout(() => {
-                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                    try {
-                      console.log('Checking progress via WebSocket');
-                      wsRef.current.send(JSON.stringify({ type: 'check_progress' }));
-                      fetchCurrentLevel(projectId || '');
-                      checkProgress();
-                    } catch (error) {
-                      console.error('Error checking progress:', error);
-                    }
-                  }
-                }, 500);
-              } catch (error) {
-                console.error('Error requesting NFTs:', error);
-              }
-            }
-          }, 300);
-        }
-        break;
-
-      case 'message':
-        const newAgentMessage = {
-          id: generateId(),
-          content: data.content,
-          isFromAgent: true,
-          timestamp: new Date(),
-          isGuidance: data.action === 'GUIDANCE',
-        };
-
-        // Set this message as the one to animate
-        animatedMessageIdRef.current = newAgentMessage.id;
-
-        addMessage(newAgentMessage);
-        setIsLoading(false);
-
-        // Check for NFT minting indications in the message
-        if (
-          data.content.includes('mint your Idea NFT') ||
-          data.content.includes('minting an Idea NFT')
-        ) {
-          setIsMintingNFT(true);
-          setMintingNFTType('idea');
-        } else if (
-          data.content.includes('mint your Vision NFT') ||
-          data.content.includes('minting a Vision NFT')
-        ) {
-          setIsMintingNFT(true);
-          setMintingNFTType('vision');
-        }
-
-        // If this message contains Discord data, update the Discord stats
-        if (data.discord) {
-          console.log('Received Discord data with message:', data.discord);
-          refresh();
-        }
-
-        // If this is a bot-added message, refresh Discord stats
-        if (data.action === 'BOT_ADDED') {
-          console.log('Bot was added to Discord server, refreshing stats');
-
-          // Add a slight delay to allow the server to update the database
-          setTimeout(() => {
-            getDiscordStats();
-
-            // Also check if we should level up
-            checkProgress();
-          }, 1000);
-
-          // Show a toast notification for additional visibility
-          toast({
-            title: '🎉 Discord Bot Added!',
-            description: 'Your Discord server is now verified and tracking has begun.',
-            variant: 'default',
-            duration: 8000,
-          });
-        }
-
-        // If mentions Discord registration or setup, try to refresh stats
-        if (
-          data.content.includes('Discord server') ||
-          data.content.includes('discord server') ||
-          data.content.includes('registered your Discord')
-        ) {
-          console.log('Message mentions Discord - refreshing stats');
-          setTimeout(() => {
-            getDiscordStats();
-          }, 1000);
-        }
-
-        // Save message to database if we have a session
-        if (sessionId) {
-          try {
-            createChatMessage(sessionId, data.content, true);
-          } catch (error) {
-            console.error('Error saving agent message:', error);
-          }
-        } else {
-          console.error('Cannot save agent message: No session ID available');
-        }
-        break;
-
-      case 'level_up':
-        console.log('[CoreAgent] Level-up WebSocket message received:', data);
-
-        // Use an IIFE to handle the async operation
-        (async () => {
-          try {
-            if (projectId) {
-              const currentLevel = await fetchCurrentLevel(projectId);
-              if (currentLevel !== null && currentLevel !== userLevel) {
-                console.log(
-                  `[CoreAgent] Level change detected from WebSocket: ${userLevel} → ${currentLevel}`
-                );
-
-                // Update level state immediately
-                setUserLevel(currentLevel);
-
-                // Use toast to clearly indicate level change to user
-                toast({
-                  title: '🚀 Level Up!',
-                  description: `You've advanced to Level ${currentLevel}! The UI will refresh to show your new requirements.`,
-                  variant: 'default',
-                  duration: 8000,
-                });
-
-                // Refresh all data to update UI
-                fetchNFTs();
-                getDiscordStats();
-                checkProgress();
-
-                // Force refresh sidebar data
-                setTimeout(() => {
-                  handleManualRefresh();
-                }, 500);
-
-                // Set last level check
-                setLastLevelCheck(Date.now());
-
-                // Notify the server we received the level update
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(
-                    JSON.stringify({
-                      type: 'level_acknowledged',
-                      previousLevel: userLevel,
-                      newLevel: currentLevel,
-                      timestamp: Date.now(),
-                    })
-                  );
-                }
-              }
-            }
-          } catch (error) {
-            console.error('[CoreAgent] Error handling level_up message:', error);
-          }
-        })();
-        break;
-
-      case 'level_update':
-        console.log('[CoreAgent] Level update WebSocket message received:', data);
-
-        if (data.forceCheck) {
-          // Force a fresh level check
-          (async () => {
-            if (projectId) {
-              try {
-                const currentLevel = await fetchCurrentLevel(projectId);
-                if (currentLevel !== null) {
-                  // Only update if the level actually changed
-                  if (currentLevel !== userLevel) {
-                    console.log(`[CoreAgent] Forced level update: ${userLevel} → ${currentLevel}`);
-                    setUserLevel(currentLevel);
-
-                    // Refresh data
-                    fetchNFTs();
-                    getDiscordStats();
-                    checkProgress();
-                  } else {
-                    console.log('[CoreAgent] Forced level check found no change');
-                  }
-                }
-              } catch (error) {
-                console.error('[CoreAgent] Error in forced level check:', error);
-              }
-            }
-          })();
-        } else if (data.level && typeof data.level === 'number') {
-          // Direct level update from server
-          if (data.level !== userLevel) {
-            console.log(`[CoreAgent] Direct level update: ${userLevel} → ${data.level}`);
-            setUserLevel(data.level);
-
-            // Refresh data
-            fetchNFTs();
-            getDiscordStats();
-            checkProgress();
-          }
-        }
-        break;
-
-      case 'nfts':
-        refresh();
-        break;
-
-      case 'discord_bot_installed':
-        // When we get a dedicated bot installation event
-        console.log('Received discord_bot_installed event:', data);
-
-        // Update Discord stats with the new information
-        if (data.discord) {
-          refresh();
-          // Fetch fresh Discord stats via REST API instead of setting from WebSocket
-          fetchDiscordStats(projectId || '').then((stats) => {
-            if (stats) {
-              refresh();
-            }
-          });
-        }
-
-        // Show a toast notification
-        toast({
-          title: '🎉 Discord Bot Added!',
-          description: 'Your Discord server is now verified and tracking has begun.',
-          variant: 'default',
-          duration: 5000,
-        });
-
-        // Refresh user progress right after a bot is installed
-        setTimeout(() => {
-          checkProgress();
-        }, 1000);
-        break;
-
-      case 'progress':
-        console.log('[CoreAgent] Progress update received:', data.progress);
-
-        // Store the previous level to detect changes
-        const prevLevel = levelProgress?.currentLevel || userLevel;
-
-        // Update progress data
-        setLevelProgress(data.progress);
-
-        // If level changed, particularly to level 4, ensure UI updates properly
-        if (data.progress && data.progress.currentLevel !== prevLevel) {
-          console.log(
-            `[CoreAgent] Level changed in progress data: ${prevLevel} -> ${data.progress.currentLevel}`
-          );
-
-          // Update user level state
-          setUserLevel(data.progress.currentLevel);
-
-          // If this is a level 3 to 4 transition, perform additional updates
-          if (data.progress.currentLevel === 4 && prevLevel === 3) {
-            console.log('[CoreAgent] Level 3 to 4 transition detected in progress data');
-
-            // Show a toast notification
-            toast({
-              title: '🎉 Level 4 Unlocked!',
-              description:
-                "Congratulations! You've completed all requirements and unlocked Level 4!",
-              variant: 'default',
-              duration: 8000,
-            });
-          }
-        }
-
-        setUserLevel(data.progress.currentLevel);
-        // Refresh NFTs and Discord stats to keep sidebar data in sync
-        setTimeout(() => {
-          fetchNFTs();
-          getDiscordStats();
-        }, 500);
-        break;
-
-      case 'nft_minted':
-        // NFT has been successfully minted
-        setIsMintingNFT(false);
-        setMintingNFTType(null);
-
-        // Refresh NFTs to show the new one
-        fetchNFTs();
-
-        setUserLevel(data.level);
-
-        toast({
-          title: '🎉 NFT Minted!',
-          description: `Your ${data.nftType} NFT has been successfully minted.`,
-          variant: 'default',
-          duration: 5000,
-        });
-        break;
-
-      case 'nfts_data':
-        refresh();
-        break;
-
-      case 'error':
-        // If there was an error during minting, reset the status
-        if (isMintingNFT) {
-          setIsMintingNFT(false);
-          setMintingNFTType(null);
-        }
-
-        toast({
-          title: 'Error',
-          description: data.message || 'Something went wrong',
-          variant: 'destructive',
-          duration: 5000,
-        });
-        setIsLoading(false);
-        break;
-
-      case 'discord_stats':
-        console.log('[CoreAgent] Received Discord stats update:', data);
-
-        if (data.stats) {
-          refresh();
-
-          // If this is a level 3 user and they meet requirements, force a progress check
-          // But let the server decide if they should level up
-          if (
-            userLevel === 3 &&
-            data.stats.memberCount >= 10 &&
-            data.stats.papersShared >= 25 &&
-            data.stats.messagesCount >= 100
-          ) {
-            console.log(
-              '[CoreAgent] Level 3 user appears to meet level 4 requirements - requesting server verification'
-            );
-
-            // Force a progress check without changing the level locally
-            setTimeout(() => {
-              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(
-                  JSON.stringify({
-                    type: 'check_progress',
-                    forceCheck: true,
-                    timestamp: Date.now(),
-                  })
-                );
-              }
-            }, 500);
-          }
-        }
-        break;
-
-      case 'level_status':
-        console.log('[CoreAgent] Level status WebSocket message received:', data);
-
-        if (data.level && typeof data.level === 'number') {
-          if (data.level !== userLevel) {
-            console.log(
-              `[CoreAgent] Server reported level: ${data.level}, local level: ${userLevel}`
-            );
-
-            // Update level state immediately
-            setUserLevel(data.level);
-
-            // Show toast notification
-            toast({
-              title: '🚀 Level Up!',
-              description: `Your level is now ${data.level}!`,
-              variant: 'default',
-              duration: 5000,
-            });
-
-            // Refresh all data
-            fetchNFTs();
-            getDiscordStats();
-            checkProgress();
-          } else {
-            console.log(`[CoreAgent] Server confirmed current level: ${data.level}`);
-          }
-        }
-
-        if (data.requirements && data.progress) {
-          // Update progress display with latest data from server
-          setLevelProgress({
-            currentLevel: data.level || userLevel,
-            requirements: data.requirements,
-            progress: data.progress,
-          });
-        }
-        break;
-
-      default:
-        console.log('Unhandled message type:', data.type);
-    }
-  };
-
-  // Send message to CoreAgent
-  const sendMessage = async (content: string) => {
-    if (!wsRef.current || !isAuthenticated || !content.trim()) return;
-
-    // Check if we have a valid session ID and create one if needed
-    if (!sessionId) {
-      console.log('No session ID available, attempting to create one');
-
-      try {
-        if (!projectId) {
-          console.error('Cannot create session: No project ID available');
-          toast({
-            title: 'Error',
-            description: 'Cannot send message - please reload the page',
-            variant: 'destructive',
-            duration: 3000,
-          });
-          return;
-        }
-
-        // Create a new session for this project
-        const newSession = await getOrCreateChatSession(projectId);
-        if (newSession && newSession.id) {
-          console.log('Created new chat session on-demand:', newSession.id);
-          refresh();
-          // Continue with sending the message now that we have a session
-        } else {
-          console.error('Failed to create new chat session');
-          toast({
-            title: 'Error',
-            description: 'Failed to create chat session - please try again',
-            variant: 'destructive',
-            duration: 3000,
-          });
-          return;
-        }
-      } catch (error) {
-        console.error('Error creating chat session:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to create chat session - please try again',
-          variant: 'destructive',
-          duration: 3000,
-        });
-        return;
-      }
-    }
-
-    // Now we should have a valid sessionId (either existing or newly created)
-    // Double check to make sure
-    if (!sessionId) {
-      console.error('Still no session ID after creation attempt');
-      toast({
-        title: 'Error',
-        description: 'Cannot send message - session creation failed',
-        variant: 'destructive',
-        duration: 3000,
-      });
-      return;
-    }
-
-    const message: WebSocketMessage = {
-      type: 'message',
-      content,
-    };
-
-    const newMessage = {
-      id: generateId(),
-      content: content,
-      isFromAgent: false,
-      timestamp: new Date(),
-    };
-
-    animatedMessageIdRef.current = newMessage.id;
-    addMessage(newMessage);
-
-    // Persist message to database
-    try {
-      createChatMessage(sessionId, content, false);
-    } catch (error) {
-      console.error('Error saving user message:', error);
-    }
-
-    wsRef.current.send(JSON.stringify(message));
-    setInputValue('');
-    setIsLoading(true);
-  };
-
-  // Fetch user's NFTs
-  const fetchNFTs = useCallback(() => {
-    if (!projectId) return;
-
-    console.log('Fetching NFTs for project:', projectId);
-    try {
-      // Access wsRef.current inside the callback to avoid dependency
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(
-          JSON.stringify({
-            type: 'get_nfts',
-          })
-        );
-      }
-    } catch (error) {
-      console.error('Error fetching NFTs:', error);
-    }
-  }, [projectId]);
-
-  // Check user's progress
-  const checkProgress = useCallback(() => {
-    if (!projectId) return;
-
-    console.log('[CoreAgent] Checking level progress for project:', projectId);
-    try {
-      // Access wsRef.current inside the callback to avoid dependency
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        // Add a timestamp to ensure the request is unique
-        ws.send(
-          JSON.stringify({
-            type: 'check_progress',
-            timestamp: Date.now(),
-            currentLevel: userLevel, // Send current level to help server verification
-          })
-        );
-
-        // Log that the progress check was sent
-        console.log(`[CoreAgent] Progress check sent with current level: ${userLevel}`);
-      }
-    } catch (error) {
-      console.error('[CoreAgent] Error checking progress:', error);
-    }
-  }, [projectId, userLevel]);
-
-  // Get Discord stats
-  const getDiscordStats = useCallback(async () => {
-    if (!projectId) return;
-
-    console.log('Fetching Discord stats for project:', projectId);
-    try {
-      const stats = await fetchDiscordStats(projectId);
-      console.log('Discord stats fetched via API:', stats);
-
-      if (stats) {
-        refresh();
-      } else {
-        console.log('No Discord server connected for this project');
-      }
-    } catch (error) {
-      console.error('Error fetching Discord stats:', error);
-    }
-  }, [projectId]);
-
-  // Fetch the current level for a user
-  const fetchCurrentLevel = useCallback(async (projectId: string): Promise<number | null> => {
-    if (!projectId) return null;
-
-    try {
-      const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
-      console.log(`[fetchCurrentLevel] Fetching level for project ${projectId}...`);
-
-      const response = await fetch(`${API_URL}/api/projects/${projectId}`);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.warn(`[fetchCurrentLevel] No project found for ID: ${projectId}`);
-          return null;
-        }
-        throw new Error(`Error fetching user level: ${response.statusText}`);
-      }
-
-      const project = await response.json();
-      console.log(`[fetchCurrentLevel] Project data retrieved:`, project);
-
-      if (project && typeof project.level === 'number') {
-        return project.level;
-      } else {
-        console.warn(`[fetchCurrentLevel] Retrieved project has invalid level data:`, project);
-        return null;
-      }
-    } catch (error) {
-      console.error(`[fetchCurrentLevel] Error fetching level for ${projectId}:`, error);
-      return null;
-    }
-  }, []);
-
-  // Add a message to the chat
-  const addMessage = (message: ChatMessage) => {
-    setMessages((prev) => [...prev, message]);
-  };
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    if (isAtBottom) {
+    if (!chatHistoryLoading) {
       scrollToBottom();
     }
-  }, [messages, isAtBottom, scrollToBottom]);
+  }, [chatHistoryLoading, messages.length]);
 
-  // Set up scroll event listener
-  useEffect(() => {
-    const currentScrollRef = scrollRef.current;
-    if (currentScrollRef) {
-      currentScrollRef.addEventListener('scroll', checkIsAtBottom);
-      return () => {
-        currentScrollRef.removeEventListener('scroll', checkIsAtBottom);
-      };
-    }
-  }, [checkIsAtBottom]);
-
-  // Load user project and chat history on initial load
-  useEffect(() => {
-    if (!user || !isAuthenticated) {
-      if (!isInitializing) setIsInitializing(true);
-      return;
-    }
-
-    setIsInitializing(true);
-
-    const loadProjectData = async () => {
-      try {
-        // Prefer embedded wallet address if available
-        const walletAddress = embeddedWallet
-          ? embeddedWallet.address
-          : user.wallet && (typeof user.wallet === 'string' ? user.wallet : user.wallet.toString());
-
-        // Ensure walletAddress is a string before proceeding
-        if (!walletAddress) {
-          console.error('No valid wallet address found');
-          setIsInitializing(false);
-          toast({
-            title: 'Error',
-            description: 'No valid wallet address found',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        console.log('Loading project data for wallet:', walletAddress);
-        const project = (await getProjectByWallet(walletAddress)) as Project;
-        if (project) {
-          console.log('Project loaded:', project.id);
-          setUserLevel(project.level);
-          setProjectId(project.id);
-
-          // Use an IIFE to avoid the dependency on fetchAndUpdateUserLevel
-          // We'll perform a manual level check when project data is first loaded
-          (async () => {
-            try {
-              const currentLevel = await fetchCurrentLevel(project.id);
-              if (currentLevel !== null && currentLevel !== project.level) {
-                console.log(
-                  `[CoreAgent] Initial level check found updated level: ${project.level} → ${currentLevel}`
-                );
-                setUserLevel(currentLevel);
-              }
-            } catch (error) {
-              console.error('[CoreAgent] Error in initial level check:', error);
-            }
-          })();
-
-          // Always get the existing session or create a new one if none exists
-          try {
-            console.log('Getting chat sessions for project:', project.id);
-            // Get all chat sessions for this project
-            const sessions = await getChatSessionsByProjectId(project.id);
-
-            if (sessions && sessions.length > 0) {
-              // Use the most recent session (first in the array)
-              console.log('Found existing chat sessions:', sessions.length);
-              console.log('Using session:', sessions[0].id);
-              refresh();
-
-              // Load chat history for this session
-              await loadChatHistoryForSession(sessions[0].id);
-            } else {
-              // Create a new session if none exists
-              console.log('No existing session found, creating a new one');
-              const newSession = await getOrCreateChatSession(project.id);
-              if (newSession && newSession.id) {
-                console.log('New session created:', newSession.id);
-                refresh();
-                setMessages([]); // Clear any messages since this is a new session
-              } else {
-                console.error('Failed to create new chat session');
-                toast({
-                  title: 'Error creating session',
-                  description: 'Could not create a new chat session',
-                  variant: 'destructive',
-                });
-              }
-            }
-          } catch (error) {
-            console.error('Error getting chat session:', error);
-            toast({
-              title: 'Session Error',
-              description: 'There was a problem retrieving your chat history',
-              variant: 'destructive',
-            });
-          }
-
-          // Load Discord stats if available
-          if (project.Discord) {
-            refresh();
-          }
-
-          // Load NFTs if available
-          if (project.NFTs && project.NFTs.length > 0) {
-            refresh();
-          }
-
-          // Set initialization as complete after all data is loaded
-          setIsInitializing(false);
-        } else {
-          console.log('No project found for wallet:', walletAddress);
-          setIsInitializing(false);
-        }
-      } catch (error) {
-        console.error('Error loading project data:', error);
-        toast({
-          title: 'Error',
-          description: 'Could not load your project data',
-          variant: 'destructive',
-        });
-        setIsInitializing(false);
-      }
-    };
-
-    // Helper function to load chat history for a specific session
-    const loadChatHistoryForSession = async (sessionId: string) => {
-      try {
-        console.log('Loading chat history for session:', sessionId);
-        const historyMessages = await getChatMessagesBySessionId(sessionId);
-
-        if (historyMessages && Array.isArray(historyMessages) && historyMessages.length > 0) {
-          console.log('Loaded', historyMessages.length, 'messages from history');
-
-          // Sort messages by timestamp to ensure correct order
-          const sortedMessages = [...historyMessages].sort((a, b) => {
-            const dateA = new Date(a.timestamp).getTime();
-            const dateB = new Date(b.timestamp).getTime();
-            return dateA - dateB;
-          });
-
-          const formattedMessages = sortedMessages.map((msg) => ({
-            id: msg.id,
-            content: msg.content,
-            isFromAgent: msg.isFromAgent,
-            timestamp: new Date(msg.timestamp || Date.now()),
-            isGuidance: msg.actionTaken === 'GUIDANCE',
-          }));
-
-          setMessages(formattedMessages);
-          setTimeout(scrollToBottom, 100);
-          return true;
-        } else {
-          console.log('No messages found for session:', sessionId);
-          setMessages([]);
-          return false;
-        }
-      } catch (error) {
-        console.error('Error loading chat history:', error);
-        toast({
-          title: 'History Error',
-          description: 'Could not load your chat history',
-          variant: 'destructive',
-        });
-        return false;
-      }
-    };
-
-    loadProjectData();
-    checkProgress();
-    getDiscordStats();
-  }, [user, isAuthenticated, wallets, embeddedWallet]);
-
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sendMessage(inputValue);
+  // Restore state and functions for sidebar and suggested messages
+  const [showDetails, setShowDetails] = useState(() => {
+    const savedPreference = localStorage.getItem('showDetailsSidebar');
+    return savedPreference === null ? true : savedPreference === 'true';
+  });
+  const toggleSidebar = () => {
+    const newValue = !showDetails;
+    setShowDetails(newValue);
+    localStorage.setItem('showDetailsSidebar', String(newValue));
   };
 
-  // Handle textarea key press (Shift+Enter for new line, Enter to send)
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (inputValue.trim()) {
-        sendMessage(inputValue);
-      }
+  const handleManualRefresh = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'get_nfts',
+          userId: projectId,
+          forceRefresh: true,
+        })
+      );
+      wsRef.current.send(
+        JSON.stringify({
+          type: 'check_progress',
+          timestamp: Date.now(),
+          forceRefresh: true,
+          currentLevel: userLevel,
+        })
+      );
+      getDiscordStats();
+      refresh();
     }
+    toast({
+      title: 'Refreshing Data',
+      description: 'Updating your project information...',
+      duration: 2000,
+    });
   };
 
-  // Generate suggested messages based on user level
   const getSuggestedMessages = (): string[] => {
     switch (userLevel) {
       case 1:
@@ -1415,12 +837,122 @@ export function CoreAgent() {
     }
   };
 
-  // Render NFT cards
+  const [levelProgress, setLevelProgress] = useState<LevelProgress | null>(null);
+
+  // Prevent UI and WebSocket usage until ready and chat history is loaded (only on initial load)
+  if (!project || !sessionId || !user || !isAtBottom) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen w-full bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <img src="/bioicon.png" alt="BioDAO" className="h-16 w-16 animate-pulse" />
+          <div className="flex items-center gap-2">
+            <Loader2 className="animate-spin h-6 w-6 text-primary" />
+            <span className="text-lg font-semibold text-primary">
+              {wsLoading ? 'Connecting to CoreAgent...' : 'Loading chat history...'}
+            </span>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            {wsLoading
+              ? 'Please wait while we establish a secure connection.'
+              : 'Fetching your previous conversation...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Restore helper functions for UI rendering
+  const MintingStatus = () => {
+    if (!isMintingNFT) return null;
+    return (
+      <div className="fixed bottom-4 right-4 bg-background border border-primary/20 rounded-lg p-4 shadow-lg z-50 max-w-xs">
+        <div className="flex items-center space-x-3">
+          <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
+          <div>
+            <p className="font-medium">{`Minting your ${mintingNFTType} NFT...`}</p>
+            <p className="text-xs text-muted-foreground">This may take a minute</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderProgressMetrics = () => {
+    if (!levelProgress) return null;
+    return (
+      <div className="space-y-4 mt-4">
+        <h3 className="text-sm font-medium">Level {userLevel} Progress</h3>
+        {Object.entries(levelProgress.progress || {}).map(([key, value]) => (
+          <div key={key} className="space-y-1">
+            <div className="flex justify-between text-xs">
+              <span>{key}</span>
+              <span>
+                {value.current}/{value.required}
+              </span>
+            </div>
+            <Progress value={value.percent} className="h-2" />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderDiscordStats = () => {
+    if (!sidebarDiscordStats) {
+      return (
+        <div className="rounded-md border p-4 mb-4">
+          <h2 className="text-sm font-medium mb-2">Discord Community</h2>
+          <p className="text-xs text-muted-foreground">No Discord server connected</p>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-2 mt-2">
+        {sidebarDiscordStats.serverName && (
+          <p className="text-sm font-medium">{sidebarDiscordStats.serverName}</p>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="border rounded-md p-2">
+            <p className="text-xs text-muted-foreground">Members</p>
+            <p className="text-sm font-medium">{sidebarDiscordStats.memberCount}</p>
+          </div>
+          <div className="border rounded-md p-2">
+            <p className="text-xs text-muted-foreground">Messages</p>
+            <p className="text-sm font-medium">{sidebarDiscordStats.messagesCount}</p>
+          </div>
+          <div className="border rounded-md p-2">
+            <p className="text-xs text-muted-foreground">Papers</p>
+            <p className="text-sm font-medium">{sidebarDiscordStats.papersShared}</p>
+          </div>
+          <div className="border rounded-md p-2">
+            <p className="text-xs text-muted-foreground">Verified</p>
+            <p className="text-sm font-medium">{sidebarDiscordStats.verified ? 'Yes' : 'No'}</p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 w-full"
+          onClick={() => {
+            getDiscordStats();
+            toast({
+              title: 'Refreshing Discord Stats',
+              description: 'Getting the latest Discord metrics...',
+              duration: 3000,
+            });
+          }}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh Discord Stats
+        </Button>
+      </div>
+    );
+  };
+
   const renderNFTCards = () => {
     if (!nfts || nfts.length === 0) {
       return <p className="text-sm text-muted-foreground">No NFTs minted yet</p>;
     }
-
     return (
       <div className="grid grid-cols-2 gap-4 mt-2">
         {nfts.map((nft: any) => (
@@ -1452,198 +984,10 @@ export function CoreAgent() {
     );
   };
 
-  // Render progress metrics based on user level
-  const renderProgressMetrics = () => {
-    if (!levelProgress) return null;
-
-    return (
-      <div className="space-y-4 mt-4">
-        <h3 className="text-sm font-medium">Level {userLevel} Progress</h3>
-
-        {Object.entries(levelProgress.progress).map(([key, value]) => (
-          <div key={key} className="space-y-1">
-            <div className="flex justify-between text-xs">
-              <span>{key}</span>
-              <span>
-                {value.current}/{value.required}
-              </span>
-            </div>
-            <Progress value={value.percent} className="h-2" />
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Render Discord stats
-  const renderDiscordStats = () => {
-    console.log('Rendering Discord stats with data:', discordStats);
-
-    if (!discordStats) {
-      return (
-        <div className="rounded-md border p-4 mb-4">
-          <h2 className="text-sm font-medium mb-2">Discord Community</h2>
-          <p className="text-xs text-muted-foreground">No Discord server connected</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-2 mt-2">
-        {discordStats.serverName && (
-          <p className="text-sm font-medium">{discordStats.serverName}</p>
-        )}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="border rounded-md p-2">
-            <p className="text-xs text-muted-foreground">Members</p>
-            <p className="text-sm font-medium">{discordStats.memberCount}</p>
-          </div>
-          <div className="border rounded-md p-2">
-            <p className="text-xs text-muted-foreground">Messages</p>
-            <p className="text-sm font-medium">{discordStats.messagesCount}</p>
-          </div>
-          <div className="border rounded-md p-2">
-            <p className="text-xs text-muted-foreground">Papers</p>
-            <p className="text-sm font-medium">{discordStats.papersShared}</p>
-          </div>
-          <div className="border rounded-md p-2">
-            <p className="text-xs text-muted-foreground">Verified</p>
-            <p className="text-sm font-medium">{discordStats.verified ? 'Yes' : 'No'}</p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2 w-full"
-          onClick={() => {
-            console.log('Manual Discord stats refresh clicked');
-            getDiscordStats();
-            toast({
-              title: 'Refreshing Discord Stats',
-              description: 'Getting the latest Discord metrics...',
-              duration: 3000,
-            });
-          }}
-        >
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh Discord Stats
-        </Button>
-      </div>
-    );
-  };
-
-  // Format wallet address for display
   const formatWalletAddress = (address: string | any): string => {
     const walletStr = typeof address === 'string' ? address : String(address);
     if (walletStr.length < 10) return walletStr;
     return `${walletStr.substring(0, 6)}...${walletStr.substring(walletStr.length - 4)}`;
-  };
-
-  // Update UI to show loading state when initializing or when user is not connected
-  if (!user) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-center">Please connect your wallet to chat with CoreAgent</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Show loading state while initializing
-  if (!project || !sessionId) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen">
-        <Card className="w-full max-w-2xl p-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              <Avatar className="size-10 border rounded-full">
-                <AvatarImage src="/bioicon.png" />
-              </Avatar>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">CoreAgent</span>
-                  <Badge variant={isConnected ? 'success' : 'destructive'} className="text-[10px]">
-                    {isConnected ? 'Connected' : 'Disconnecting'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">Loading your BioDAO data...</p>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center space-y-4 p-8">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <div>
-                <p className="font-medium">Loading your data</p>
-                <p className="text-sm text-muted-foreground">
-                  Please wait while we set up your CoreAgent session...
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Update showDetails toggle to save preference
-  const toggleSidebar = () => {
-    const newValue = !showDetails;
-    setShowDetails(newValue);
-    // Save preference to localStorage
-    localStorage.setItem('showDetailsSidebar', String(newValue));
-  };
-
-  // Restore manual refresh function
-  const handleManualRefresh = () => {
-    console.log('Manual refresh requested');
-
-    // Run all data fetching functions
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      // Get NFTs
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'get_nfts',
-          forceRefresh: true,
-        })
-      );
-
-      // Check progress
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'check_progress',
-          timestamp: Date.now(),
-          forceRefresh: true,
-        })
-      );
-
-      // Get Discord stats through REST API
-      getDiscordStats();
-    }
-
-    toast({
-      title: 'Refreshing Data',
-      description: 'Updating your project information...',
-      duration: 2000,
-    });
-  };
-
-  // Add a component to show minting status
-  const MintingStatus = () => {
-    if (!isMintingNFT) return null;
-
-    return (
-      <div className="fixed bottom-4 right-4 bg-background border border-primary/20 rounded-lg p-4 shadow-lg z-50 max-w-xs">
-        <div className="flex items-center space-x-3">
-          <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary"></div>
-          <div>
-            <p className="font-medium">{`Minting your ${mintingNFTType} NFT...`}</p>
-            <p className="text-xs text-muted-foreground">This may take a minute</p>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   // Main component UI when everything is loaded
@@ -1673,7 +1017,7 @@ export function CoreAgent() {
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="bg-primary text-primary-foreground">
-                Level {userLevel}
+                Level {sidebarUserLevel}
               </Badge>
               <Button variant="ghost" size="icon" onClick={toggleSidebar}>
                 {showDetails ? <X size={18} /> : <Settings size={18} />}
@@ -1759,36 +1103,40 @@ export function CoreAgent() {
                       )}
                     </div>
                   ) : (
-                    messages.map((message, index) => {
-                      const isLastMessage = index === messages.length - 1;
-                      const shouldAnimate =
-                        isLastMessage &&
-                        message.isFromAgent &&
-                        message.id === animatedMessageIdRef.current;
+                    [...messages]
+                      .sort(
+                        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                      )
+                      .map((message, index, sortedMessages) => {
+                        const isLastMessage = index === sortedMessages.length - 1;
+                        const shouldAnimate =
+                          isLastMessage &&
+                          message.isFromAgent &&
+                          message.id === animatedMessageIdRef.current;
 
-                      return (
-                        <div
-                          key={message.id}
-                          className={`flex flex-col gap-1 p-1 ${message.isFromAgent ? 'justify-start' : 'justify-end'}`}
-                        >
-                          <ChatBubble
-                            variant={message.isFromAgent ? 'received' : 'sent'}
-                            className="flex flex-row items-end gap-2"
+                        return (
+                          <div
+                            key={message.id}
+                            className={`flex flex-col gap-1 p-1 ${message.isFromAgent ? 'justify-start' : 'justify-end'}`}
                           >
-                            {message.isFromAgent && (
-                              <Avatar className="size-8 border rounded-full select-none mb-2">
-                                <AvatarImage src="/bioicon.png" />
-                              </Avatar>
-                            )}
+                            <ChatBubble
+                              variant={message.isFromAgent ? 'received' : 'sent'}
+                              className="flex flex-row items-end gap-2"
+                            >
+                              {message.isFromAgent && (
+                                <Avatar className="size-8 border rounded-full select-none mb-2">
+                                  <AvatarImage src="/bioicon.png" />
+                                </Avatar>
+                              )}
 
-                            <MemoizedMessageContent
-                              message={message}
-                              shouldAnimate={shouldAnimate}
-                            />
-                          </ChatBubble>
-                        </div>
-                      );
-                    })
+                              <MemoizedMessageContent
+                                message={message}
+                                shouldAnimate={shouldAnimate}
+                              />
+                            </ChatBubble>
+                          </div>
+                        );
+                      })
                   )}
                   {isLoading && (
                     <div className="flex justify-start">
@@ -1898,14 +1246,14 @@ export function CoreAgent() {
                   <div>
                     <h4 className="font-medium text-sm flex items-center gap-2 mb-2">
                       <span className="inline-flex items-center justify-center bg-primary/10 rounded-full w-5 h-5 text-xs font-semibold text-primary">
-                        {userLevel}
+                        {sidebarUserLevel}
                       </span>
                       Current Level
                     </h4>
 
                     {levelProgress && (
                       <div className="mt-2 text-xs text-muted-foreground">
-                        <p>Requirements for Level {userLevel + 1}:</p>
+                        <p>Requirements for Level {sidebarUserLevel + 1}:</p>
                         <ul className="list-disc pl-4 mt-1 space-y-1">
                           {levelProgress.requirements.map((req, i) => (
                             <li key={i}>{req}</li>

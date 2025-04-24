@@ -302,6 +302,105 @@
                 </div>
             </div>
         </div>
+
+        <!-- New section for API testing -->
+        <div class="row mt-4">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        API Testing
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h5>Projects API</h5>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="projectId" placeholder="Project ID">
+                                <div class="input-group-append">
+                                    <button class="btn btn-info" id="getProjectBtn">Get Project</button>
+                                    <button class="btn btn-warning" id="updateProjectBtn">Update Project</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="projectUpdateData">Update Data (JSON)</label>
+                                <textarea class="form-control" id="projectUpdateData" rows="2"
+                                    placeholder='{"projectName": "Updated Project"}'></textarea>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5>Chat API</h5>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="chatUserId" placeholder="User ID">
+                                <div class="input-group-append">
+                                    <button class="btn btn-info" id="getSessionsBtn">Get Sessions</button>
+                                </div>
+                            </div>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="sessionId" placeholder="Session ID">
+                                <div class="input-group-append">
+                                    <button class="btn btn-info" id="getMessagesBtn">Get Messages</button>
+                                    <button class="btn btn-primary" id="sendChatMessageBtn">Send Message</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="chatMessageText">Message Content</label>
+                                <textarea class="form-control" id="chatMessageText" rows="2"
+                                    placeholder="Message content..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5>Discord API</h5>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="discordProjectId" placeholder="Project ID">
+                                <div class="input-group-append">
+                                    <button class="btn btn-info" id="getDiscordStatsBtn">Get Discord Stats</button>
+                                </div>
+                            </div>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="guildId" placeholder="Guild ID">
+                                <div class="input-group-append">
+                                    <button class="btn btn-warning" id="updateDiscordStatsBtn">Update Stats</button>
+                                    <button class="btn btn-primary" id="botInstalledBtn">Bot Installed</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="discordUpdateData">Stats Data (JSON)</label>
+                                <textarea class="form-control" id="discordUpdateData" rows="2"
+                                    placeholder='{"memberCount": 10, "messagesCount": 50, "papersShared": 5}'></textarea>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5>NFT API</h5>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="nftProjectId" placeholder="Project ID">
+                                <div class="input-group-append">
+                                    <button class="btn btn-info" id="getNFTsBtn">Get NFTs</button>
+                                </div>
+                            </div>
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control" id="nftWalletAddress"
+                                    placeholder="Wallet Address">
+                                <select class="form-control" id="nftType">
+                                    <option value="idea">Idea</option>
+                                    <option value="vision">Vision</option>
+                                </select>
+                                <div class="input-group-append">
+                                    <button class="btn btn-success" id="mintNFTBtn">Mint NFT</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h5>API Response</h5>
+                            <pre id="apiResponse" class="p-3 bg-light border rounded"
+                                style="max-height: 300px; overflow: auto;">No response yet</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -747,6 +846,238 @@
         window.addEventListener('load', () => {
             connect();
         });
+
+        // API Testing Functions
+        document.getElementById('getProjectBtn').addEventListener('click', async () => {
+            const projectId = document.getElementById('projectId').value;
+            if (!projectId) {
+                showApiResponse({ error: 'Project ID is required' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/projects/${projectId}`);
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('updateProjectBtn').addEventListener('click', async () => {
+            const projectId = document.getElementById('projectId').value;
+            const updateDataStr = document.getElementById('projectUpdateData').value;
+
+            if (!projectId) {
+                showApiResponse({ error: 'Project ID is required' });
+                return;
+            }
+
+            try {
+                const updateData = JSON.parse(updateDataStr || '{}');
+                const response = await fetch(`${getApiBaseUrl()}/api/projects/${projectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('getSessionsBtn').addEventListener('click', async () => {
+            const userId = document.getElementById('chatUserId').value;
+            if (!userId) {
+                showApiResponse({ error: 'User ID is required' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/chat/sessions/${userId}`);
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('getMessagesBtn').addEventListener('click', async () => {
+            const sessionId = document.getElementById('sessionId').value;
+            if (!sessionId) {
+                showApiResponse({ error: 'Session ID is required' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/chat/messages/${sessionId}`);
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('sendChatMessageBtn').addEventListener('click', async () => {
+            const sessionId = document.getElementById('sessionId').value;
+            const content = document.getElementById('chatMessageText').value;
+
+            if (!sessionId) {
+                showApiResponse({ error: 'Session ID is required' });
+                return;
+            }
+
+            if (!content) {
+                showApiResponse({ error: 'Message content is required' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/chat/messages/${sessionId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content, isFromAgent: false })
+                });
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('getDiscordStatsBtn').addEventListener('click', async () => {
+            const projectId = document.getElementById('discordProjectId').value;
+            if (!projectId) {
+                showApiResponse({ error: 'Project ID is required' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/discord/${projectId}`);
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('updateDiscordStatsBtn').addEventListener('click', async () => {
+            const guildId = document.getElementById('guildId').value;
+            const updateDataStr = document.getElementById('discordUpdateData').value;
+
+            if (!guildId) {
+                showApiResponse({ error: 'Guild ID is required' });
+                return;
+            }
+
+            try {
+                const updateData = JSON.parse(updateDataStr || '{}');
+                updateData.guildId = guildId;
+
+                // Add API key to request
+                updateData.apiKey = prompt('Enter API Key for Discord updates:');
+
+                const response = await fetch(`${getApiBaseUrl()}/api/discord/stats-update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('botInstalledBtn').addEventListener('click', async () => {
+            const guildId = document.getElementById('guildId').value;
+
+            if (!guildId) {
+                showApiResponse({ error: 'Guild ID is required' });
+                return;
+            }
+
+            try {
+                const payload = {
+                    guildId,
+                    guildName: prompt('Enter Guild Name:') || 'Test Server',
+                    memberCount: parseInt(prompt('Enter Member Count:') || '1')
+                };
+
+                // Add API key to request
+                payload.apiKey = prompt('Enter API Key for Discord updates:');
+
+                const response = await fetch(`${getApiBaseUrl()}/api/discord/bot-installed`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('getNFTsBtn').addEventListener('click', async () => {
+            const projectId = document.getElementById('nftProjectId').value;
+            if (!projectId) {
+                showApiResponse({ error: 'Project ID is required' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/nfts/${projectId}`);
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        document.getElementById('mintNFTBtn').addEventListener('click', async () => {
+            const projectId = document.getElementById('nftProjectId').value;
+            const walletAddress = document.getElementById('nftWalletAddress').value;
+            const nftType = document.getElementById('nftType').value;
+
+            if (!projectId) {
+                showApiResponse({ error: 'Project ID is required' });
+                return;
+            }
+
+            if (!walletAddress) {
+                showApiResponse({ error: 'Wallet Address is required' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${getApiBaseUrl()}/api/nfts/mint`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        projectId,
+                        walletAddress,
+                        nftType
+                    })
+                });
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        });
+
+        function getApiBaseUrl() {
+            // Extract the base URL from the WebSocket URL
+            const wsUrl = document.getElementById('wsUrl').value;
+            return wsUrl.replace('ws://', 'http://');
+        }
+
+        function showApiResponse(data) {
+            const responseElement = document.getElementById('apiResponse');
+            responseElement.textContent = JSON.stringify(data, null, 2);
+        }
     </script>
 </body>
 
