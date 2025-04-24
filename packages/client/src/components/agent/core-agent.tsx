@@ -513,6 +513,7 @@ export function CoreAgent() {
           setUserLevel(data.newLevel || userLevel + 1);
           setSidebarUserLevel(data.newLevel || userLevel + 1);
           checkProgress();
+          refresh();
           toast({
             title: 'Level Up!',
             description: data.message || 'You advanced a level!',
@@ -523,6 +524,7 @@ export function CoreAgent() {
           setUserLevel(data.level || userLevel);
           setSidebarUserLevel(data.level || userLevel);
           checkProgress();
+          refresh();
           break;
         case 'nfts':
           refresh();
@@ -530,7 +532,6 @@ export function CoreAgent() {
         case 'discord_info':
           if (data.discord) {
             setSidebarDiscordStats(data.discord);
-            checkProgress();
             refresh();
           }
           break;
