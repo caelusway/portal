@@ -204,6 +204,9 @@ const MemoizedMessageContent = React.memo(
     const normalizeContent = (content: string) => {
       if (!content) return '';
 
+      // Remove excessive line breaks
+      content = content.replace(/\n{3,}/g, '\n\n');
+
       return content;
     };
 
@@ -523,7 +526,6 @@ export function CoreAgent() {
         case 'level':
           setUserLevel(data.level || userLevel);
           setSidebarUserLevel(data.level || userLevel);
-          checkProgress();
           refresh();
           break;
         case 'nfts':
