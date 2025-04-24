@@ -166,7 +166,6 @@ const typingAnimationCSS = `
   }
 
   .chatgpt-bubble {
-    max-width: 65%;
     padding: 0.3rem 0.5rem;
     border-radius: 0.65rem;
     font-size: 0.9rem;
