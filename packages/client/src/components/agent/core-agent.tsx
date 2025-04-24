@@ -387,6 +387,32 @@ export function CoreAgent() {
     };
   };
 
+  // Check user's progress
+  const checkProgress = useCallback(() => {
+    if (!projectId) return;
+
+    console.log('[CoreAgent] Checking level progress for project:', projectId);
+    try {
+      // Access wsRef.current inside the callback to avoid dependency
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        // Add a timestamp to ensure the request is unique
+        ws.send(
+          JSON.stringify({
+            type: 'check_progress',
+            timestamp: Date.now(),
+            currentLevel: userLevel, // Send current level to help server verification
+          })
+        );
+
+        // Log that the progress check was sent
+        console.log(`[CoreAgent] Progress check sent with current level: ${userLevel}`);
+      }
+    } catch (error) {
+      console.error('[CoreAgent] Error checking progress:', error);
+    }
+  }, [projectId, userLevel]);
+
   // Utility: Get wallet address from user/wallets
   const getWalletAddress = (user: any, wallets: any, embeddedWallet: any): string | null => {
     if (embeddedWallet?.address) return embeddedWallet.address;
@@ -486,6 +512,7 @@ export function CoreAgent() {
         case 'level_up':
           setUserLevel(data.newLevel || userLevel + 1);
           setSidebarUserLevel(data.newLevel || userLevel + 1);
+          checkProgress();
           toast({
             title: 'Level Up!',
             description: data.message || 'You advanced a level!',
@@ -495,6 +522,7 @@ export function CoreAgent() {
         case 'level':
           setUserLevel(data.level || userLevel);
           setSidebarUserLevel(data.level || userLevel);
+          checkProgress();
           break;
         case 'nfts':
           refresh();
@@ -502,12 +530,14 @@ export function CoreAgent() {
         case 'discord_info':
           if (data.discord) {
             setSidebarDiscordStats(data.discord);
+            checkProgress();
             refresh();
           }
           break;
         case 'discord_bot_installed':
           if (data.discord) {
             setSidebarDiscordStats(data.discord);
+            checkProgress();
             refresh();
           }
           break;
@@ -521,6 +551,7 @@ export function CoreAgent() {
               isGuidance: msg.actionTaken === 'GUIDANCE',
             }));
             setMessages(formattedMessages);
+            checkProgress();
             refresh();
           }
           break;
@@ -539,6 +570,7 @@ export function CoreAgent() {
               },
             ]);
             setProcessedMessageIds((prev) => new Set(prev).add(messageId));
+            checkProgress();
             refresh();
           }
           setIsLoading(false);
