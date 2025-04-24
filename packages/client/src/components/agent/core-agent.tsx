@@ -94,7 +94,6 @@ interface ServerChatMessage {
   timestamp?: string | Date;
   actionTaken?: string;
 }
-
 const typingAnimationCSS = `
   @keyframes typing {
     0% { content: '.'; }
@@ -102,99 +101,79 @@ const typingAnimationCSS = `
     66% { content: '...'; }
     100% { content: '.'; }
   }
-  
+
   .typing-animation::after {
     content: '.';
     animation: typing 1.5s infinite;
   }
 
-  /* Guidance message style - subtle left border only */
   .guidance-message {
-    position: relative;
     border-left: 3px solid #3b82f6;
-    padding-left: 0.5rem;
+    padding-left: 0.4rem;
   }
-  
 
-  /* Markdown styles */
   .markdown-content {
-    line-height: 1.6;
-    color: var(--foreground, inherit);
+    line-height: 1.4;
+    font-size: 0.9rem;
+    color: var(--foreground, #111);
   }
-  
-  .markdown-content h1 {
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin-top: 1rem;
-    margin-bottom: 0.5rem;
-  }
-  
-  .markdown-content h2 {
-    font-size: 1.3rem;
-    font-weight: bold;
-    margin-top: 0.8rem;
-    margin-bottom: 0.4rem;
-  }
-  
+
+  .markdown-content h1,
+  .markdown-content h2,
   .markdown-content h3 {
-    font-size: 1.1rem;
-    font-weight: bold;
-    margin-top: 0.6rem;
-    margin-bottom: 0.3rem;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0.4rem 0 0.3rem;
   }
-  
-  .markdown-content p {
-    margin-bottom: 0.75rem;
-  }
-  
-  .markdown-content ul, .markdown-content ol {
-    margin-left: 1.75rem;
-    margin-bottom: 0.75rem;
-    margin-top: 0.5rem;
-    display: block;
-    list-style-position: outside;
-  }
-  
-  .markdown-content ul {
-    list-style-type: disc !important;
-  }
-  
-  .markdown-content ol {
-    list-style-type: decimal !important;
-  }
-  
+
+  .markdown-content p,
   .markdown-content li {
-    display: list-item !important;
-    margin-bottom: 0.3rem;
-    padding-left: 0.25rem;
+    margin: 0.2rem 0;
   }
-  
+
+  .markdown-content ul,
+  .markdown-content ol {
+    margin: 0.4rem 1rem;
+    padding-left: 1rem;
+  }
+
   .markdown-content a {
     color: #3b82f6;
     text-decoration: underline;
-    cursor: pointer;
-    word-break: break-word;
-    transition: color 0.15s ease;
   }
-  
-  .markdown-content a:hover {
-    color: #2563eb;
-    text-decoration: underline;
-  }
-  
+
   .markdown-content code {
-    background-color: rgba(0, 0, 0, 0.1);
-    padding: 0.2rem 0.3rem;
+    background: #f4f4f5;
+    padding: 0.15rem 0.25rem;
     border-radius: 0.2rem;
     font-family: monospace;
-    font-size: 0.9em;
+    font-size: 0.85em;
   }
-  
+
   .markdown-content blockquote {
-    border-left: 4px solid #e5e7eb;
-    padding-left: 1rem;
-    margin-left: 0;
+    border-left: 3px solid #e5e7eb;
+    padding-left: 0.6rem;
     color: #6b7280;
+    margin: 0.3rem 0;
+  }
+
+  .chatgpt-message-row {
+    margin-bottom: 0.1rem;
+    padding: 0 0.2rem;
+  }
+
+  .chatgpt-bubble {
+    max-width: 65%;
+    padding: 0.3rem 0.5rem;
+    border-radius: 0.65rem;
+    font-size: 0.85rem;
+    line-height: 1.3;
+  }
+
+  .chatgpt-timestamp {
+    font-size: 0.6rem;
+    margin: 0.2rem;
+    color: #9ca3af;
   }
 `;
 
@@ -875,6 +854,7 @@ export function CoreAgent() {
   const [levelProgress, setLevelProgress] = useState<LevelProgress | null>(null);
 
   // Prevent UI and WebSocket usage until ready and chat history is loaded (only on initial load)
+  /*
   if (!project || !sessionId || !user || !isAtBottom) {
     return (
       <div className="flex flex-col items-center justify-center h-screen w-full bg-background">
@@ -894,7 +874,7 @@ export function CoreAgent() {
         </div>
       </div>
     );
-  }
+  }*/
 
   // Restore helper functions for UI rendering
   const MintingStatus = () => {
