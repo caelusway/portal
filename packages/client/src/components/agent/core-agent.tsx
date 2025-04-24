@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../../lib/use-auth';
-import { useToast } from '../../hooks/use-toast';
+import { toast, useToast } from '../../hooks/use-toast';
 import { Button } from '../../components/ui/button';
 import { ScrollArea } from '../../components/ui/scroll-area';
 import {
@@ -13,6 +13,7 @@ import {
   BrainCircuit,
   ArrowDown,
   RefreshCw,
+  Copy,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Avatar, AvatarImage } from '../../components/ui/avatar';
@@ -113,7 +114,7 @@ const typingAnimationCSS = `
   }
 
   .markdown-content {
-    line-height: 1.4;
+    line-height: 1.7;
     font-size: 0.9rem;
     color: var(--foreground, #111);
   }
@@ -123,17 +124,19 @@ const typingAnimationCSS = `
   .markdown-content h3 {
     font-size: 1rem;
     font-weight: 600;
-    margin: 0.4rem 0 0.3rem;
+    margin: 0.6rem 0 0.4rem;
   }
 
-  .markdown-content p,
   .markdown-content li {
-    margin: 0.2rem 0;
+    margin: 0.3rem 0;
   }
 
   .markdown-content ul,
   .markdown-content ol {
-    margin: 0.4rem 1rem;
+    margin-top: 0.2rem;
+    margin-bottom: 0.8rem;
+    margin-left: 1rem;
+    margin-right: 1rem;
     padding-left: 1rem;
   }
 
@@ -144,10 +147,10 @@ const typingAnimationCSS = `
 
   .markdown-content code {
     background: #f4f4f5;
-    padding: 0.15rem 0.25rem;
+    padding: 0.2rem 0.25rem;
     border-radius: 0.2rem;
     font-family: monospace;
-    font-size: 0.85em;
+    font-size: 0.9em;
   }
 
   .markdown-content blockquote {
@@ -166,19 +169,28 @@ const typingAnimationCSS = `
     max-width: 65%;
     padding: 0.3rem 0.5rem;
     border-radius: 0.65rem;
-    font-size: 0.85rem;
-    line-height: 1.3;
+    font-size: 0.9rem;
+    line-height: 1.4;
   }
 
   .chatgpt-timestamp {
-    font-size: 0.6rem;
+    font-size: 0.7rem;
     margin: 0.2rem;
     color: #9ca3af;
   }
 `;
 
+// Update MemoizedMessageContent to accept toast as a prop
 const MemoizedMessageContent = React.memo(
-  ({ message, shouldAnimate }: { message: ChatMessage; shouldAnimate: boolean }) => {
+  ({
+    message,
+    shouldAnimate,
+    toast,
+  }: {
+    message: ChatMessage;
+    shouldAnimate: boolean;
+    toast: any;
+  }) => {
     // Function to normalize text content by removing excessive line breaks
     const normalizeContent = (content: string) => {
       if (!content) return '';
@@ -196,6 +208,19 @@ const MemoizedMessageContent = React.memo(
       return content.replace(urlRegex, (url) => {
         return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #3b82f6; text-decoration: underline;">${url}</a>`;
       });
+    };
+
+    // Move handleCopyMessage inside so it can use toast
+    const handleCopyMessage = (content: string) => {
+      if (navigator && navigator.clipboard) {
+        navigator.clipboard.writeText(content).then(() => {
+          toast({
+            title: 'Copied!',
+            description: 'Message copied to clipboard as markdown.',
+            duration: 1500,
+          });
+        });
+      }
     };
 
     // Markdown component to render with consistent styling
@@ -218,28 +243,28 @@ const MemoizedMessageContent = React.memo(
             // Style ordered and unordered lists
             ul: ({ node, ...props }) => (
               <ul
-                className="list-disc pl-6 my-2 block"
+                className="list-disc pl-6 my-4 block"
                 style={{ listStylePosition: 'outside' }}
                 {...props}
               />
             ),
             ol: ({ node, ...props }) => (
               <ol
-                className="list-decimal pl-6 my-2 block"
+                className="list-decimal pl-6 my-4 block"
                 style={{ listStylePosition: 'outside' }}
                 {...props}
               />
             ),
             // Style list items
             li: ({ node, ...props }) => (
-              <li className="mb-1 ml-0" style={{ display: 'list-item' }} {...props} />
+              <li className="mb-2 ml-0" style={{ display: 'list-item' }} {...props} />
             ),
             // Style paragraphs
             p: ({ node, ...props }) => <p className="mb-3" {...props} />,
             // Style headings
             h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
             h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-3 mb-2" {...props} />,
-            h3: ({ node, ...props }) => <h3 className="text-md font-bold mt-2 mb-1" {...props} />,
+            h3: ({ node, ...props }) => <h3 className="text-md font-bold mt-2 mb-2" {...props} />,
           }}
         >
           {normalizeContent(content)}
@@ -266,12 +291,23 @@ const MemoizedMessageContent = React.memo(
               />
             )}
           </div>
-          <ChatBubbleTimestamp
-            timestamp={new Date(message.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          />
+          <div className="flex items-center gap-1 mt-1 w-full justify-end">
+            <ChatBubbleTimestamp
+              timestamp={new Date(message.timestamp).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            />
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-muted focus:bg-muted"
+              style={{ lineHeight: 0 }}
+              onClick={() => handleCopyMessage(message.content)}
+              aria-label="Copy message as markdown"
+            >
+              <Copy className="w-4 h-4 text-gray-400 hover:text-primary" />
+            </button>
+          </div>
         </ChatBubbleMessage>
       </div>
     );
@@ -1147,6 +1183,7 @@ export function CoreAgent() {
                               <MemoizedMessageContent
                                 message={message}
                                 shouldAnimate={shouldAnimate}
+                                toast={toast}
                               />
                             </ChatBubble>
                           </div>
