@@ -85,7 +85,7 @@ export function useDashboardData() {
   // Initial load
   useEffect(() => {
     fetchDashboardData();
-  }, [privyId, project]);
+  }, [privyId]);
 
   // Ensure level is always a number
   const currentLevel = project?.level && typeof project.level === 'number' ? project.level : 1;
