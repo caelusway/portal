@@ -56,7 +56,8 @@
     "test": "npx @elizaos/cli test",
     "publish": "npx @elizaos/cli plugin publish",
     "format": "prettier --write ./src",
-    "format:check": "prettier --check ./src"
+    "format:check": "prettier --check ./src",
+    "postinstall": "prisma generate"
   },
   "publishConfig": {
     "access": "public"

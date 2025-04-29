@@ -21,5 +21,7 @@ export default defineConfig({
     'agentkeepalive',
     'fluent-ffmpeg',
     'zod',
+    '@prisma/client',
+    '.prisma/client',
   ],
 });
