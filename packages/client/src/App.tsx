@@ -24,6 +24,7 @@ import { UserLevelProvider } from './lib/user-level.tsx';
 import { CoreAgent } from './components/agent/core-agent';
 import { DatabaseProvider } from './contexts/db-context';
 import { RequireOnboarding } from './lib/require-onboarding';
+import Chat from './routes/chat';
 
 // Create protected route components
 //const ProtectedDashboard = RequireOnboarding(DashboardLayout);
@@ -101,6 +102,7 @@ function App() {
                           <Routes>
                             <Route path="/" element={<Home />} />
                             <Route path="/chat" element={<CoreAgent />} />
+                            <Route path="chat/:agentId" element={<Chat />} />
                             <Route path="/settings" element={<Settings />} />
                             <Route path="/room/:serverId" element={<Room />} />
                             <Route path="/env-settings" element={<EnvSettings />} />

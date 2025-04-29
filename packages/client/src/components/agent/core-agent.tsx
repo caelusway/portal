@@ -442,19 +442,6 @@ export function CoreAgent() {
   // Derived state: is authentication info ready?
   const isAuthReady = !!(getWalletAddress(user, wallets, embeddedWallet) || user?.id);
 
-  useEffect(() => {
-    if (autoRefreshEnabled) {
-      refreshIntervalRef.current = setInterval(() => {
-        refresh();
-      }, 4000);
-    } else {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-        refreshIntervalRef.current = null;
-      }
-    }
-  }, [autoRefreshEnabled]);
-
   // Send message to CoreAgent
   const sendMessage = async (content: string) => {
     if (!wsRef.current || !isAuthenticated || !content.trim()) return;

@@ -1,196 +1,304 @@
-import { IAgentRuntime, Service, logger } from '@elizaos/core';
-import { supabase } from '../lib/supabase'; // Assuming supabase client is configured
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Service, IAgentRuntime } from '@elizaos/core';
+import {
+  Client,
+  GatewayIntentBits,
+  Events,
+  Guild,
+  GuildMember,
+  Message,
+  TextChannel,
+} from 'discord.js';
+import { DiscordService as DBDiscordService, ProjectService } from '../utils/db';
+// Assume these exist or stub as needed
+import { analyzeScientificPdf, detectPaper } from '../utils/paperDetection';
 
-// Placeholder types for external bot data structure
-interface DiscordMetrics {
-  memberCount: number;
-  paperShares: number;
-  totalMessages: number;
-  lastUpdated: Date;
+// In-memory stats tracking
+interface GuildStats {
+  messageCount: number;
+  papersShared: number;
+  qualityScore: number;
+  lastMessageTimestamp: Date;
+  activeUsers: Set<string>;
 }
 
 export class DiscordService extends Service {
   public readonly capabilityDescription =
-    'Handles storing user Discord server info and fetching community metrics (via external bot).';
+    'Tracks Discord community metrics and engagement for BioDAO onboarding';
 
-  private client: Client;
+  client: Client;
+  private statsUpdateInterval: NodeJS.Timeout | null = null;
+  private guildStats: Map<string, GuildStats> = new Map();
+  private guildMessageHistory: Map<
+    string,
+    { userId: string; content: string; timestamp: Date; qualityScore: number }[]
+  > = new Map();
+  private processedMessageIdsByGuild: Record<string, Set<string>> = {};
 
   constructor(runtime: IAgentRuntime) {
     super(runtime);
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMembers,
       ],
     });
+  }
 
-    // Event listener for when the bot is added to a new server
-    this.client.on('guildCreate', async (guild) => {
-      console.log(`Bot added to a new server: ${guild.name} (ID: ${guild.id})`);
+  static async start(runtime: IAgentRuntime): Promise<DiscordService> {
+    const service = new DiscordService(runtime);
+    await service.init();
+    return service;
+  }
 
-      // Map guild ID to user privyId and update the database
-      const privyId = await this.getPrivyIdForGuild(guild.id);
-      console.log(`Privy ID for guild ${guild.name} (ID: ${guild.id}): ${privyId}`);
-      if (privyId) {
-        const { error } = await supabase
-          .from('user_discord_info')
-          .update({ bot_invited: true })
-          .eq('privy_id', privyId);
+  async stop(): Promise<void> {
+    if (this.statsUpdateInterval) clearInterval(this.statsUpdateInterval);
+    await this.client.destroy();
+  }
 
-        if (error) {
-          console.error('Failed to update bot_invited status:', error);
-        } else {
-          console.log('Updated bot_invited status for user:', privyId);
+  private async init() {
+    const token = process.env.DISCORD_BOT_TOKEN;
+    if (!token) throw new Error('DISCORD_BOT_TOKEN not set');
+    this.registerEventHandlers();
+    await this.client.login(token);
+    console.log('[DiscordService] Bot logged in');
+  }
+
+  private registerEventHandlers() {
+    this.client.once(Events.ClientReady, () => {
+      console.log(`[DiscordService] Ready as ${this.client.user?.tag}`);
+      this.scheduleStatsUpdates();
+      // Initialize stats for all guilds
+      this.client.guilds.cache.forEach((guild) => this.initializeGuildStats(guild));
+    });
+
+    this.client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
+      const guild = member.guild;
+      console.log(`[DiscordService] New member joined ${guild.name}: ${member.user.username}`);
+      await this.updateStats(guild.id);
+      // Level-up logic: check requirements
+      await this.checkLevelRequirements(guild.id);
+    });
+
+    this.client.on(Events.MessageCreate, async (message: Message) => {
+      if (message.author.bot || !message.guild) return;
+      const guildId = message.guild.id;
+      // Deduplication
+      if (!this.processedMessageIdsByGuild[guildId])
+        this.processedMessageIdsByGuild[guildId] = new Set();
+      if (this.processedMessageIdsByGuild[guildId].has(message.id)) return;
+      this.processedMessageIdsByGuild[guildId].add(message.id);
+      // Paper detection
+      const isSpam = this.isLowValueMessage(message.content);
+      const hasPdfLink = /https?:\/\/[^\s]+\.pdf(\?[^\s]*)?/i.test(message.content);
+      const hasAttachment = message.attachments.size > 0;
+      let isPaper = false;
+      if (hasAttachment) {
+        for (const [, attachment] of message.attachments) {
+          const filename = attachment.name?.toLowerCase() || '';
+          if (filename.endsWith('.pdf')) {
+            const paperAnalysis = analyzeScientificPdf(attachment.name || '', attachment.size);
+            const isArxivPattern = attachment.name?.match(/^[0-9]{4}\.[0-9]{4,5}\.pdf$/i);
+            if (isArxivPattern || paperAnalysis.isScientificPaper) {
+              isPaper = true;
+              try {
+                await message.react('📚');
+              } catch {}
+              break;
+            }
+          }
         }
       }
-    });
-
-    // Event listener for when the bot is removed from a server
-    this.client.on('guildDelete', async (guild) => {
-      console.log(`Bot removed from server: ${guild.name} (ID: ${guild.id})`);
-
-      // Handle bot removal logic if necessary
-      // For example, update the database to reflect the bot is no longer in the server
-    });
-
-    // Log in to Discord with your bot's token
-    this.client.login(process.env.DISCORD_BOT_TOKEN);
-  }
-
-  // Example method to map guild ID to privyId
-  private async getPrivyIdForGuild(guildId: string): Promise<string | null> {
-    try {
-      // Query the Supabase database to find the privyId associated with the guildId
-      const { data, error } = await supabase
-        .from('user_discord_info')
-        .select('privy_id')
-        .eq('server_id', guildId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching privyId for guildId:', error);
-        return null;
+      if (!isPaper) {
+        if (hasPdfLink) {
+          isPaper = true;
+          try {
+            await message.react('📚');
+          } catch {}
+        } else {
+          isPaper = detectPaper(message.content, hasAttachment);
+        }
       }
-
-      console.log(`Privy ID for guild ${guildId}: ${data}`);
-
-      return data?.privy_id || null;
-    } catch (error) {
-      console.error('Exception in getPrivyIdForGuild:', error);
-      // Implement logic to retrieve privyId based on guildId
-      // This could involve querying a database or another data source
-      return null; // Placeholder
-    }
-  }
-
-  /**
-   * Stores the user's provided Discord server information using the 'user_discord_info' table.
-   */
-  async storeUserServerInfo(
-    privyId: string,
-    serverId: string,
-    inviteLink: string
-  ): Promise<boolean> {
-    logger.info(
-      `[DiscordService] Storing server info for ${privyId}: ServerID=${serverId}, Invite=${inviteLink}`
-    );
-    try {
-      // Upsert into the user_discord_info table
-      const { error } = await supabase.from('user_discord_info').upsert(
-        {
-          privy_id: privyId,
-          server_id: serverId,
-          invite_link: inviteLink,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'privy_id' }
-      ); // Use privy_id as the conflict target
-
-      if (error) {
-        logger.error(`[DiscordService] Failed to store server info for ${privyId}:`, error);
-        return false;
+      if (isPaper) {
+        await this.incrementPapersShared(guildId);
+        // Log: trigger level-up/email/websocket as needed
+        console.log(`[DiscordService] Paper detected in ${guildId}`);
+        return;
       }
-      logger.info(`[DiscordService] Successfully stored/updated server info for ${privyId}.`);
-      return true;
-    } catch (error) {
-      logger.error(`[DiscordService] Exception storing server info for ${privyId}:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * Retrieves the stored server ID for a given user from the 'user_discord_info' table.
-   */
-  async getUserServerId(privyId: string): Promise<string | null> {
-    logger.info(`[DiscordService] Getting server ID for ${privyId}`);
-    try {
-      // Select server_id from user_discord_info table
-      const { data, error } = await supabase
-        .from('user_discord_info')
-        .select('server_id')
-        .eq('privy_id', privyId)
-        .maybeSingle(); // Use maybeSingle to handle 0 or 1 row without error
-
-      if (error) {
-        // Log any error that isn't just "no rows found"
-        logger.error(`[DiscordService] Failed to get server ID for ${privyId}:`, error);
-        return null;
+      if (!isSpam) {
+        await this.incrementMessagesCount(guildId);
       }
-
-      if (data?.server_id) {
-        logger.info(`[DiscordService] Found server ID ${data.server_id} for ${privyId}.`);
-        return data.server_id;
-      } else {
-        logger.info(`[DiscordService] No server ID found for ${privyId}.`);
-        return null;
-      }
-    } catch (error) {
-      logger.error(`[DiscordService] Exception getting server ID for ${privyId}:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Retrieves the latest tracked metrics for a given Discord server.
-   * TODO: Implement logic to fetch data reported by the external tracking bot.
-   * This might involve querying a database table updated by the bot, calling a bot API, or reading from a cache.
-   */
-  async getDiscordMetrics(serverId: string): Promise<DiscordMetrics | null> {
-    logger.info(`[DiscordService] Getting metrics for server ID: ${serverId}`);
-    if (!serverId) {
-      logger.warn('[DiscordService] Cannot get metrics without a server ID.');
-      return null;
-    }
-    try {
-      // Placeholder: Replace with actual logic to fetch metrics
-      // This data should originate from the external tracking bot.
-      logger.warn(
-        `[DiscordService] Metrics fetching from external bot/data source is not implemented yet.`
+      // Quality scoring
+      this.updateMessageHistory(
+        guildId,
+        message.author.id,
+        message.content,
+        this.calculateMessageQuality(message.content)
       );
-      // Return mock data for testing purposes, or null
-      /*
-            return {
-                memberCount: 5, // Example data
-                paperShares: 10,
-                totalMessages: 50,
-                lastUpdated: new Date()
-            };
-            */
-      return null;
-    } catch (error) {
-      logger.error(`[DiscordService] Exception getting metrics for server ${serverId}:`, error);
-      return null;
+      this.evaluateMessageQuality(guildId);
+    });
+  }
+
+  private scheduleStatsUpdates() {
+    this.statsUpdateInterval = setInterval(
+      () => {
+        this.client.guilds.cache.forEach((guild) => this.updateStats(guild.id));
+      },
+      30 * 60 * 1000
+    ); // Every 30 minutes
+  }
+
+  private async initializeGuildStats(guild: Guild) {
+    // Fetch from DB
+    const discordRecord = await DBDiscordService.getByServerId(guild.id);
+    const dbMessages = discordRecord?.messagesCount || 0;
+    const dbPapers = discordRecord?.papersShared || 0;
+    const dbQuality = discordRecord?.qualityScore || 50;
+    this.guildStats.set(guild.id, {
+      messageCount: dbMessages,
+      papersShared: dbPapers,
+      qualityScore: dbQuality,
+      lastMessageTimestamp: new Date(),
+      activeUsers: new Set<string>(),
+    });
+    this.guildMessageHistory.set(guild.id, []);
+  }
+
+  private async updateStats(guildId: string) {
+    // Fetch and update stats from DB
+    const discordRecord = await DBDiscordService.getByServerId(guildId);
+    if (!discordRecord) return;
+    const stats = this.guildStats.get(guildId) || {
+      messageCount: 0,
+      papersShared: 0,
+      qualityScore: 50,
+      lastMessageTimestamp: new Date(),
+      activeUsers: new Set<string>(),
+    };
+    stats.messageCount = discordRecord.messagesCount || 0;
+    stats.papersShared = discordRecord.papersShared || 0;
+    stats.qualityScore = discordRecord.qualityScore || 50;
+    this.guildStats.set(guildId, stats);
+  }
+
+  private async incrementPapersShared(guildId: string) {
+    const discordRecord = await DBDiscordService.getByServerId(guildId);
+    if (!discordRecord) return;
+    await DBDiscordService.updateStats(discordRecord.id, {
+      papersShared: (discordRecord.papersShared || 0) + 1,
+      updatedAt: new Date(),
+    });
+    await this.checkLevelRequirements(guildId);
+  }
+
+  private async incrementMessagesCount(guildId: string) {
+    const discordRecord = await DBDiscordService.getByServerId(guildId);
+    if (!discordRecord) return;
+    await DBDiscordService.updateStats(discordRecord.id, {
+      messagesCount: (discordRecord.messagesCount || 0) + 1,
+      updatedAt: new Date(),
+    });
+    await this.checkLevelRequirements(guildId);
+  }
+
+  private async checkLevelRequirements(guildId: string) {
+    // Fetch project and discord stats, check for level-up
+    const discordRecord = await DBDiscordService.getByServerId(guildId);
+    if (!discordRecord) return;
+    const project = await ProjectService.getById(discordRecord.projectId);
+    if (!project) return;
+    // Example: Level 4 requirements
+    if (
+      project.level === 3 &&
+      (discordRecord.memberCount || 0) >= 5 &&
+      (discordRecord.papersShared || 0) >= 5 &&
+      (discordRecord.messagesCount || 0) >= 50
+    ) {
+      // Level up
+      await ProjectService.updateLevel(project.id, 4);
+      // Log: trigger email/websocket as needed
+      console.log(`[DiscordService] Project ${project.id} leveled up to 4!`);
     }
   }
 
-  // Required by Service base class
-  async start(): Promise<void> {
-    logger.info('[DiscordService] DiscordService started');
+  private isLowValueMessage(content: string): boolean {
+    const normalizedContent = content.toLowerCase().trim();
+    if (normalizedContent.length < 5) return true;
+    const lowValuePatterns = [
+      /^(hi|hey|hello|sup|yo|gm|good morning|good evening|good night|gn|bye|cya|see ya|lol|ok|okay|k|sure|yes|no|maybe|thanks|thx|ty|np|yw|welcome)$/i,
+      /^(what'?s up|how are you|how's it going)$/i,
+      /^(nice|cool|great|awesome|amazing|good|bad|sad|happy|lmao|lmfao|rofl|oof|rip|f)$/i,
+      /^((?:ha){1,5})$/i,
+      /^[👋👍👎❤️😂🙏]+$/u,
+    ];
+    for (const pattern of lowValuePatterns) {
+      if (pattern.test(normalizedContent)) return true;
+    }
+    const wordCount = normalizedContent.split(/\s+/).filter((word) => word.length > 0).length;
+    if (wordCount <= 2) return true;
+    return false;
   }
-  async stop(): Promise<void> {
-    logger.info('[DiscordService] DiscordService stopped');
+
+  private updateMessageHistory(
+    guildId: string,
+    userId: string,
+    content: string,
+    qualityScore: number
+  ) {
+    if (!this.guildMessageHistory.has(guildId)) this.guildMessageHistory.set(guildId, []);
+    const history = this.guildMessageHistory.get(guildId)!;
+    history.push({ userId, content, timestamp: new Date(), qualityScore });
+    if (history.length > 1000) history.shift();
+  }
+
+  private calculateMessageQuality(content: string): number {
+    let score = 0;
+    const length = content.length;
+    score += Math.min(40, length / 5);
+    if (content.includes('```')) score += 10;
+    if (content.match(/\*\*.*\*\*/)) score += 5;
+    if (content.match(/\[.*\]\(.*\)/)) score += 10;
+    if (content.includes('\n\n')) score += 5;
+    if (content.match(/\d+\./)) score += 10;
+    if (content.match(/^>.*$/m)) score += 10;
+    return Math.min(100, score);
+  }
+
+  private evaluateMessageQuality(guildId: string): void {
+    const stats = this.guildStats.get(guildId);
+    const messageHistory = this.guildMessageHistory.get(guildId);
+    if (!stats || !messageHistory) return;
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentMessages = messageHistory.filter((msg) => msg.timestamp > oneDayAgo);
+    const qualityMessages = recentMessages.filter((msg) => msg.qualityScore > 30);
+    const qualityPercentage =
+      recentMessages.length > 0 ? (qualityMessages.length / recentMessages.length) * 100 : 0;
+    if (recentMessages.length > 10 && qualityPercentage < 50) {
+      stats.qualityScore = Math.max(30, stats.qualityScore * 0.9);
+    }
+    if (recentMessages.length > 10 && qualityPercentage > 80) {
+      stats.qualityScore = Math.min(100, stats.qualityScore * 1.1);
+    }
+    this.guildStats.set(guildId, stats);
+  }
+
+  // Example: Send a message to a channel
+  async sendMessage(content: string, channelId: string): Promise<void> {
+    const channel = await this.client.channels.fetch(channelId);
+    if (channel && channel.isTextBased && channel.isTextBased()) {
+      await (channel as TextChannel).send(content);
+    }
+  }
+
+  // Example: Fetch server info (can be used by actions/providers)
+  async fetchServerInfo(guildId: string) {
+    const guild = this.client.guilds.cache.get(guildId);
+    if (!guild) return null;
+    return {
+      id: guild.id,
+      name: guild.name,
+      memberCount: guild.memberCount,
+    };
   }
 }

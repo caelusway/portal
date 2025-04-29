@@ -29,6 +29,8 @@ import { useAutoScroll } from './ui/chat/hooks/useAutoScroll';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 import { CHAT_SOURCE } from '@/constants';
+import { useDashboardData } from '../hooks/use-dashboard-data';
+import { generateNextLevelRequirementsMessage, getBotInstallationUrl } from '@/lib/helpers';
 
 type ExtraContentFields = {
   name: string;
@@ -170,6 +172,55 @@ export default function Page({
 
   const animatedMessageIdRef = useRef<string | null>(null);
 
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const { project } = useDashboardData();
+
+  useEffect(() => {
+    if (project) {
+      setUserId(project.id);
+    }
+  }, [project, agentData]);
+
+  useEffect(() => {
+    if (project && agentData && messages.length === 0) {
+      // Send next level requirements as CoreAgent message on first load
+      const currentLevel = project.level || 1;
+      const botInstallationUrl = getBotInstallationUrl();
+      const nextLevelMessage = generateNextLevelRequirementsMessage(
+        currentLevel,
+        project,
+        botInstallationUrl
+      );
+      const coreAgentMessage: ContentWithUser = {
+        text: nextLevelMessage,
+        name: agentData.name || 'CoreAgent',
+        createdAt: Date.now(),
+        senderId: agentId,
+        senderName: agentData.name || 'CoreAgent',
+        roomId: roomId,
+        source: CHAT_SOURCE,
+        id: randomUUID(),
+        projectId: project.id,
+        isLoading: false,
+      };
+      queryClient.setQueryData(
+        ['messages', agentId, roomId, worldId],
+        (old: ContentWithUser[] = []) => {
+          // Only add if not already present
+          if (
+            old.some(
+              (msg) => msg.text === coreAgentMessage.text && msg.name === coreAgentMessage.name
+            )
+          ) {
+            return old;
+          }
+          return [coreAgentMessage, ...old];
+        }
+      );
+    }
+  }, [project, agentData, agentId, roomId, worldId, queryClient, messages.length]);
+
   useEffect(() => {
     // Initialize Socket.io connection once with our entity ID
     socketIOManager.initialize(entityId, [agentId]);
@@ -206,6 +257,7 @@ export default function Page({
         name: isCurrentUser ? USER_NAME : (data.senderName as string),
         createdAt: data.createdAt || Date.now(),
         isLoading: false,
+        projectId: '27cfdb30-6946-4b5e-9290-ae30864ce638',
       };
 
       console.log(`[Chat] Adding new message to UI from ${newMessage.name}:`, newMessage);
@@ -320,6 +372,7 @@ export default function Page({
       roomId: roomId,
       source: CHAT_SOURCE,
       id: messageId, // Add a unique ID for React keys and duplicate detection
+      projectId: '27cfdb30-6946-4b5e-9290-ae30864ce638',
     };
 
     console.log('[Chat] Adding user message to UI:', userMessage);
@@ -346,7 +399,7 @@ export default function Page({
     );
 
     // Send the message to the server/agent
-    socketIOManager.sendMessage(input, roomId, CHAT_SOURCE);
+    socketIOManager.sendMessage(input, roomId, CHAT_SOURCE, { userId: userId || undefined });
 
     setMessageProcessing(true);
     setSelectedFile(null);

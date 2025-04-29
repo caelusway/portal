@@ -14,37 +14,30 @@ import {
   logger,
 } from '@elizaos/core';
 import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
 
 // Import actions
-import { checkLevelRequirementsAction } from './actions/check-level-requirements';
-import { fetchUserLevelAction } from './actions/fetch-user-level';
-import { getUserLevelAction } from './actions/get-user-level';
-import { incrementUserLevelAction } from './actions/increment-user-level';
-import { updateUserLevelAction } from './actions/update-user-level';
-import { inviteDiscordBotAction } from './actions/invite-discord-bot';
-import { checkDiscordMemberCountAction } from './actions/check-discord-member-count';
-import { sendEmailAction } from './actions/send-email';
-import { sendLevelUpEmailAction } from './actions/send-level-up-email';
+import { checkDiscordLevelProgressAction } from './actions/checkDiscordLevelProgress';
+import { checkDiscordMemberCountAction } from './actions/checkDiscordMemberCount';
+import { checkLevelRequirementsAction } from './actions/checkLevelRequirements';
+import { fetchUserLevelAction } from './actions/fetchUserLevel';
+import { getUserLevelAction } from './actions/getUserLevel';
+import { incrementUserLevelAction } from './actions/incrementUserLevel';
+import { updateUserLevelAction } from './actions/updateUserLevel';
+import { sendLevelUpEmailAction } from './actions/sendLevelUpEmail';
+import { inviteDiscordBotAction } from './actions/inviteDiscordBot';
 
 // Import services
-import { UserLevelService } from './services/user-level-service';
-import { SupabaseService } from './services/supabase-service';
-import { DiscordService as DiscordService1 } from './services/discordService';
-
-// Import Discord module
-import { DiscordService } from './discord/service';
-import chatWithAttachments from './discord/actions/chatWithAttachments';
-import downloadMedia from './discord/actions/downloadMedia';
-import summarizeConversation from './discord/actions/summarizeConversation';
-import transcribeMedia from './discord/actions/transcribeMedia';
+import { DiscordService, DiscordService as DiscordService1 } from './services/discordService';
 
 // Import providers
-import {
-  channelStateProvider,
-  voiceStateProvider,
-  supabaseStateProvider,
-  userStateProvider,
-} from './providers';
+import { onboardingProvider } from './providers/onboardingProvider';
+import { userInfoProvider } from './providers/userInfoProvider';
+import { LEVELS, getNextLevelRequirements } from './onboarding/levels';
+import { generateNextLevelRequirementsMessage, getBotInstallationUrl } from './utils/helpers';
+import { nextLevelRequirementsEvent } from './events/nextLevelRequirementsEvent';
+
+const prisma = new PrismaClient();
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -149,26 +142,31 @@ export const plugin: Plugin = {
         'To enable Discord functionality, please provide DISCORD_API_TOKEN in your .eliza/.env file'
       );
     }
-    // Register Discord actions
+
+    runtime.registerAction({
+      name: 'REPLY',
+      description: 'Disabled fallback reply action to prevent generic LLM responses.',
+      validate: async () => false, // disables fallback
+      handler: async () => true,
+    });
+
+    // Register actions
     runtime.registerAction(incrementUserLevelAction);
     runtime.registerAction(updateUserLevelAction);
     runtime.registerAction(fetchUserLevelAction);
     runtime.registerAction(checkLevelRequirementsAction);
     runtime.registerAction(getUserLevelAction);
-    runtime.registerAction(sendLevelUpEmailAction);
-    runtime.registerAction(sendEmailAction);
-    runtime.registerAction(inviteDiscordBotAction);
+    runtime.registerAction(checkDiscordLevelProgressAction);
     runtime.registerAction(checkDiscordMemberCountAction);
+    runtime.registerAction(sendLevelUpEmailAction);
+    runtime.registerAction(inviteDiscordBotAction);
 
-    // Register Discord service
+    // Register services
     runtime.registerService(DiscordService);
-    runtime.registerService(DiscordService1);
 
     // Register providers
-    runtime.registerProvider(channelStateProvider);
-    runtime.registerProvider(voiceStateProvider);
-    runtime.registerProvider(supabaseStateProvider);
-    runtime.registerProvider(userStateProvider);
+    runtime.registerProvider(onboardingProvider);
+    runtime.registerProvider(userInfoProvider);
   },
   models: {
     [ModelType.TEXT_SMALL]: async (
@@ -226,34 +224,95 @@ export const plugin: Plugin = {
     MESSAGE_RECEIVED: [
       async (params) => {
         logger.debug('MESSAGE_RECEIVED event received');
-        // print the keys
         logger.debug(Object.keys(params));
       },
     ],
     VOICE_MESSAGE_RECEIVED: [
       async (params) => {
         logger.debug('VOICE_MESSAGE_RECEIVED event received');
-        // print the keys
         logger.debug(Object.keys(params));
       },
     ],
     WORLD_CONNECTED: [
-      async (params) => {
+      async (payload) => {
         logger.debug('WORLD_CONNECTED event received');
-        // print the keys
-        logger.debug(Object.keys(params));
+        logger.debug(Object.keys(payload));
+        // Send onboarding stats to user
+        try {
+          const runtime = payload.runtime;
+          // Construct minimal memory/state for onboardingProvider
+          const firstEntity =
+            payload.entities && payload.entities.length > 0 ? payload.entities[0] : null;
+          const projectId = (payload.world?.id || (firstEntity && firstEntity.id)) as
+            | `${string}-${string}-${string}-${string}-${string}`
+            | undefined;
+          const entityId = firstEntity?.id as
+            | `${string}-${string}-${string}-${string}-${string}`
+            | undefined;
+          const roomId = (
+            payload.rooms && payload.rooms.length > 0 ? payload.rooms[0].id : undefined
+          ) as `${string}-${string}-${string}-${string}-${string}` | undefined;
+          if (projectId && entityId && roomId) {
+            const memory = { entityId, roomId, content: { projectId } };
+            const state = { projectId, values: {}, data: {}, text: '' };
+            const onboarding = await onboardingProvider.get(runtime, memory, state);
+            let discordStats = null;
+            const project = await prisma.project.findUnique({
+              where: { id: projectId },
+              include: { Discord: true, NFTs: true },
+            });
+            if (project && project.Discord) {
+              discordStats = {
+                memberCount: project.Discord.memberCount,
+                papersShared: project.Discord.papersShared,
+                messagesCount: project.Discord.messagesCount,
+                botAdded: project.Discord.botAdded,
+              };
+            }
+            const currentLevel = onboarding.values?.level || 1;
+            const botInstallationUrl = getBotInstallationUrl();
+            const nextLevelMessage = generateNextLevelRequirementsMessage(
+              currentLevel,
+              project,
+              botInstallationUrl
+            );
+            let text = onboarding.text + '\n\n' + nextLevelMessage;
+            if (discordStats) {
+              text += `\n\nDiscord Stats:\n- Members: ${discordStats.memberCount}\n- Papers Shared: ${discordStats.papersShared}\n- Messages: ${discordStats.messagesCount}\n- Bot Added: ${discordStats.botAdded ? 'Yes' : 'No'}`;
+            }
+            if (typeof runtime.processActions === 'function') {
+              await runtime.processActions(
+                {
+                  entityId,
+                  roomId,
+                  content: { text, values: { ...onboarding.values, discordStats } },
+                },
+                [],
+                state
+              );
+            } else {
+              logger.info('[WORLD_CONNECTED] Would send onboarding stats:', text);
+            }
+          } else {
+            logger.info(
+              '[WORLD_CONNECTED] Skipping onboarding stats: missing projectId, entityId, or roomId'
+            );
+          }
+        } catch (err) {
+          logger.error('Error sending onboarding stats on WORLD_CONNECTED:', err);
+        }
       },
     ],
     WORLD_JOINED: [
-      async (params) => {
+      async (payload) => {
         logger.debug('WORLD_JOINED event received');
-        // print the keys
-        logger.debug(Object.keys(params));
+        logger.debug(Object.keys(payload));
       },
+      nextLevelRequirementsEvent,
     ],
   },
 
-  services: [UserLevelService, SupabaseService, DiscordService, DiscordService1],
+  services: [DiscordService],
   actions: [
     checkLevelRequirementsAction,
     fetchUserLevelAction,
@@ -262,23 +321,9 @@ export const plugin: Plugin = {
     updateUserLevelAction,
     inviteDiscordBotAction,
     checkDiscordMemberCountAction,
-    sendEmailAction,
     sendLevelUpEmailAction,
-    // Discord actions
-    chatWithAttachments,
-    downloadMedia,
-    summarizeConversation,
-    transcribeMedia,
   ],
-  providers: [
-    // Discord providers
-    channelStateProvider,
-    voiceStateProvider,
-    // Supabase provider
-    supabaseStateProvider,
-    // User state provider
-    userStateProvider,
-  ],
+  providers: [onboardingProvider, userInfoProvider],
 };
 
 export default plugin;
