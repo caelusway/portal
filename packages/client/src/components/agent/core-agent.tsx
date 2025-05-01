@@ -545,6 +545,13 @@ export function CoreAgent() {
             refresh();
           }
           break;
+        case 'bot_added':
+          if (data.discord) {
+            setSidebarDiscordStats(data.discord);
+            checkProgress();
+            refresh();
+          }
+          break;
         case 'chat_history':
           if (data.messages && Array.isArray(data.messages)) {
             const formattedMessages = data.messages.map((msg: ServerChatMessage) => ({
