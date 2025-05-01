@@ -30,7 +30,7 @@ export function WelcomeForm() {
   const { submitForm } = useWelcomeForm();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { upsertProject } = useDatabase();
+  const { createUser, getUserByPrivyId, createProject } = useDatabase();
   const { wallets } = useWallets();
 
   // Get embedded wallet
@@ -81,83 +81,86 @@ export function WelcomeForm() {
       if (user?.id) {
         console.log('Submitting form with Privy user:', user);
 
-        // 1. Prepare project data with Privy ID and wallet address
+        // 1. First create or get the BioUser
+        let bioUser = await getUserByPrivyId(user.id);
+
+        if (!bioUser) {
+          const userData = {
+            privyId: user.id,
+            wallet: embeddedWallet?.address || null,
+            email: values.email || user.email?.address || null,
+            fullName: values.fullName || null,
+          };
+
+          bioUser = await createUser(userData);
+          console.log('BioUser created:', bioUser);
+        }
+
+        // 2. Now create the project linked to this user
         const projectData = {
-          privyId: user.id, // Use Privy ID
-          wallet: embeddedWallet?.address,
-          fullName: values.fullName,
-          email: values.email || user.email?.address || '', // Prioritize form email, fallback to Privy
-          projectName: values.projectName,
-          projectDescription: values.projectDescription,
-          projectVision: values.projectVision,
+          name: values.projectName,
+          description: values.projectDescription,
+          vision: values.projectVision,
           scientificReferences: values.scientificReferences,
           credentialLinks: values.credentialLinks,
-          teamMembers: values.teamMembers,
+          teamDescription: values.teamMembers,
           motivation: values.motivation,
           progress: values.progress,
+          level: 1, // Starting level
         };
 
-        try {
-          // 2. Create/Update the project using the database context
-          const project = await upsertProject(projectData);
-          console.log('Project created/updated via database context:', project);
+        const project = await createProject(projectData, bioUser.id);
+        console.log('Project created:', project);
 
-          // Convert project to profile for compatibility
-          const profile = {
-            id: project.id,
-            privy_id: project.privyId,
-            full_name: project.fullName,
-            email: project.email,
-            project_name: project.projectName,
-            project_description: project.projectDescription,
-            project_vision: project.projectVision,
-            scientific_references: project.scientificReferences,
-            credential_links: project.credentialLinks,
-            team_members: project.teamMembers,
-            motivation: project.motivation,
-            progress: project.progress,
-            // Safely handle date conversion
-            created_at:
-              project.createdAt instanceof Date
-                ? project.createdAt.toISOString()
-                : typeof project.createdAt === 'string'
-                  ? project.createdAt
-                  : new Date().toISOString(),
-            updated_at:
-              project.updatedAt instanceof Date
-                ? project.updatedAt.toISOString()
-                : typeof project.updatedAt === 'string'
-                  ? project.updatedAt
-                  : new Date().toISOString(),
-            level: project.level,
-          } as Profile;
+        // 3. Add the user as a project member (this would happen automatically on the backend)
 
-          setSubmittedProfile(profile);
+        // Convert project to profile for compatibility with existing code
+        const profile = {
+          id: project.id,
+          privy_id: bioUser.privyId,
+          full_name: bioUser.fullName,
+          email: bioUser.email,
+          project_name: project.name,
+          project_description: project.description,
+          project_vision: project.vision,
+          scientific_references: project.scientificReferences,
+          credential_links: project.credentialLinks,
+          team_members: project.teamDescription,
+          motivation: project.motivation,
+          progress: project.progress,
+          // Safely handle date conversion
+          created_at:
+            project.createdAt instanceof Date
+              ? project.createdAt.toISOString()
+              : typeof project.createdAt === 'string'
+                ? project.createdAt
+                : new Date().toISOString(),
+          updated_at:
+            project.updatedAt instanceof Date
+              ? project.updatedAt.toISOString()
+              : typeof project.updatedAt === 'string'
+                ? project.updatedAt
+                : new Date().toISOString(),
+          level: project.level,
+        } as Profile;
 
-          // Success toast
-          toast({
-            title: 'Profile created successfully',
-            description: "Your profile has been saved and you're now at level 1!",
-            duration: 3000,
-          });
+        setSubmittedProfile(profile);
 
-          // 3. Save to local context
-          submitForm(values);
+        // Success toast
+        toast({
+          title: 'Profile created successfully',
+          description: "Your profile has been saved and you're now at level 1!",
+          duration: 3000,
+        });
 
-          // 4. Show the NFT minting option
-          setActiveTab('nft');
+        // 4. Save to local context
+        submitForm(values);
 
-          // 5. Navigate to chat
-          navigate(`/chat`);
-        } catch (error: any) {
-          console.error('Error saving profile:', error);
-          toast({
-            title: 'Error saving profile',
-            description: error.message || 'An unknown error occurred',
-            variant: 'destructive',
-            duration: 5000,
-          });
-        }
+        // 5. Show the NFT minting option
+        setActiveTab('nft');
+
+        // 6. Navigate to chat
+        navigate(`/chat`);
       } else {
         toast({
           title: 'Authentication required',

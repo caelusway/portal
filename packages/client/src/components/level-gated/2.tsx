@@ -96,11 +96,11 @@ export function ProjectVisionForm({ closeForm, onSubmit }: ProjectVisionFormProp
         if (user?.id) {
           await markRequirementComplete('Create project vision document');
         }
-        
+
         // Reset form or show success message
         alert('Project vision saved successfully!');
       }
-      
+
       // Close form if closeForm prop is provided
       if (closeForm) {
         closeForm();
@@ -188,16 +188,15 @@ export function DiscordSetupCard() {
 
   const handleCreateServer = async () => {
     if (!serverName.trim() || !user?.id) return;
-    
+
     setIsCreating(true);
-    
+
     try {
       // Simulate server creation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       setIsCreated(true);
       await markRequirementComplete('Create a Discord server for your project');
-      
     } catch (error) {
       console.error('Error creating Discord server:', error);
     } finally {
@@ -207,14 +206,13 @@ export function DiscordSetupCard() {
 
   const handleInviteBot = async () => {
     if (!isCreated || !user?.id) return;
-    
+
     try {
       // Simulate bot invitation
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
       setInviteBotDone(true);
       await markRequirementComplete('Invite our Discord bot');
-      
     } catch (error) {
       console.error('Error inviting bot:', error);
     }
@@ -227,9 +225,7 @@ export function DiscordSetupCard() {
           <MessageSquare className="mr-2 h-5 w-5" />
           Discord Server Setup
         </CardTitle>
-        <CardDescription>
-          Create a Discord server for your research community
-        </CardDescription>
+        <CardDescription>Create a Discord server for your research community</CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -241,18 +237,16 @@ export function DiscordSetupCard() {
               onChange={(e) => setServerName(e.target.value)}
               className="mb-4"
             />
-            
-            <Button 
+
+            <Button
               onClick={handleCreateServer}
               disabled={!serverName.trim() || isCreating}
               className="w-full"
             >
               {isCreating ? 'Creating...' : 'Create Discord Server'}
             </Button>
-            
-            {/* Show tutorial video before server is created */}
-            <DiscordTutorialVideo />
-            
+
+            {/* Show tutorial video before server is created <DiscordTutorialVideo /> */}
           </div>
         ) : (
           <div className="space-y-4">
@@ -260,16 +254,14 @@ export function DiscordSetupCard() {
               <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
               <div>
                 <p className="font-medium text-green-700">Server Created!</p>
-                <p className="text-sm text-green-600">"{serverName}" has been created successfully.</p>
+                <p className="text-sm text-green-600">
+                  "{serverName}" has been created successfully.
+                </p>
               </div>
             </div>
-            
+
             {!inviteBotDone ? (
-              <Button 
-                onClick={handleInviteBot} 
-                className="w-full"
-                variant="outline"
-              >
+              <Button onClick={handleInviteBot} className="w-full" variant="outline">
                 <Bot className="mr-2 h-4 w-4" /> Invite BioDAO Bot
               </Button>
             ) : (
@@ -277,11 +269,13 @@ export function DiscordSetupCard() {
                 <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
                 <div>
                   <p className="font-medium text-green-700">Bot Added!</p>
-                  <p className="text-sm text-green-600">BioDAO Bot has been added to your server.</p>
+                  <p className="text-sm text-green-600">
+                    BioDAO Bot has been added to your server.
+                  </p>
                 </div>
               </div>
             )}
-            
+
             {/* Still show both components after creation for reference */}
             <DiscordTutorialVideo />
             <BioDaoInviteDemo />
@@ -295,9 +289,9 @@ export function DiscordSetupCard() {
 export function TeamInviteCard() {
   const { user } = useAuth();
   const { markRequirementComplete } = useLevelRequirements();
-  const [members, setMembers] = useState<Array<{email: string, name: string, status: 'pending' | 'joined'}>>([
-    { email: '', name: '', status: 'pending' }
-  ]);
+  const [members, setMembers] = useState<
+    Array<{ email: string; name: string; status: 'pending' | 'joined' }>
+  >([{ email: '', name: '', status: 'pending' }]);
   const [isSending, setIsSending] = useState(false);
 
   const addMember = () => {
@@ -311,25 +305,26 @@ export function TeamInviteCard() {
   };
 
   const handleSendInvites = async () => {
-    const validMembers = members.filter(m => m.email.trim() && m.name.trim());
+    const validMembers = members.filter((m) => m.email.trim() && m.name.trim());
     if (validMembers.length === 0 || !user?.id) return;
-    
+
     setIsSending(true);
-    
+
     try {
       // Simulate sending invites
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
       // Simulate some members joining
-      setMembers(validMembers.map((member, idx) => ({
-        ...member,
-        status: idx < 3 ? 'joined' : 'pending'
-      })));
-      
+      setMembers(
+        validMembers.map((member, idx) => ({
+          ...member,
+          status: idx < 3 ? 'joined' : 'pending',
+        }))
+      );
+
       if (validMembers.length >= 3) {
         await markRequirementComplete('Grow your community to 4 members');
       }
-      
     } catch (error) {
       console.error('Error sending invites:', error);
     } finally {
@@ -337,7 +332,7 @@ export function TeamInviteCard() {
     }
   };
 
-  const joinedCount = members.filter(m => m.status === 'joined').length;
+  const joinedCount = members.filter((m) => m.status === 'joined').length;
 
   return (
     <Card>
@@ -346,9 +341,7 @@ export function TeamInviteCard() {
           <Users className="mr-2 h-5 w-5" />
           Invite Team Members
         </CardTitle>
-        <CardDescription>
-          Grow your community by inviting team members
-        </CardDescription>
+        <CardDescription>Grow your community by inviting team members</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -358,13 +351,13 @@ export function TeamInviteCard() {
                 Community Growth: {joinedCount + 1}/4 members
               </p>
               <p className="text-sm text-blue-600">
-                {joinedCount + 1 >= 4 
-                  ? 'Congratulations! You have enough members to advance.' 
+                {joinedCount + 1 >= 4
+                  ? 'Congratulations! You have enough members to advance.'
                   : `Invite ${4 - (joinedCount + 1)} more members to complete this requirement.`}
               </p>
             </div>
           )}
-          
+
           {members.map((member, index) => (
             <div key={index} className="space-y-3 p-3 border rounded-md">
               <div>
@@ -393,20 +386,20 @@ export function TeamInviteCard() {
               )}
             </div>
           ))}
-          
+
           <div className="flex gap-3">
             <Button variant="outline" onClick={addMember} className="flex-1">
               Add Another
             </Button>
-            <Button 
-              onClick={handleSendInvites} 
-              disabled={isSending || members.every(m => m.status === 'joined')}
+            <Button
+              onClick={handleSendInvites}
+              disabled={isSending || members.every((m) => m.status === 'joined')}
               className="flex-1"
             >
               {isSending ? 'Sending...' : 'Send Invites'}
             </Button>
           </div>
-          
+
           {joinedCount + 1 < 4 && (
             <div className="flex items-center justify-between p-3 mt-4 bg-muted/50 rounded-lg">
               <div className="flex items-center">
@@ -427,29 +420,51 @@ export function TeamInviteCard() {
   );
 }
 
-// Add Discord Tutorial Video component 
+// Add Discord Tutorial Video component
 export function DiscordTutorialVideo() {
   return (
     <div className="bg-muted/50 rounded-lg p-4 mb-6">
       <h3 className="font-medium flex items-center gap-2 mb-2">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-          <path d="m22 8-6 4 6 4V8Z"/>
-          <rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-primary"
+        >
+          <path d="m22 8-6 4 6 4V8Z" />
+          <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
         </svg>
         Discord Server Setup Tutorial
       </h3>
       <p className="text-sm text-muted-foreground mb-3">
         Follow this step-by-step video guide to set up your Discord server and invite our bot:
       </p>
-      <a 
-        href="https://www.youtube.com/watch?v=EDd8TMC3XfM&t=3s" 
-        target="_blank" 
+      <a
+        href="https://www.youtube.com/watch?v=EDd8TMC3XfM&t=3s"
+        target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-2 bg-card p-3 border rounded-md hover:bg-accent/10 transition-colors"
       >
         <div className="bg-primary/10 p-2 rounded-full">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-            <polygon points="5 3 19 12 5 21 5 3"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-primary"
+          >
+            <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
         </div>
         <div className="flex-1">
@@ -464,7 +479,7 @@ export function DiscordTutorialVideo() {
 // Bio DAO Discord Invitation Demo component
 export function BioDaoInviteDemo() {
   const [copied, setCopied] = useState(false);
-  const inviteLink = "https://discord.gg/biodao";
+  const inviteLink = 'https://discord.gg/biodao';
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(inviteLink);
@@ -478,11 +493,12 @@ export function BioDaoInviteDemo() {
         <MessageSquare className="h-4 w-4" />
         Join Our Bio DAO Discord (Demo)
       </h3>
-      
+
       <p className="text-sm text-blue-700/80 dark:text-blue-400/80 mb-4">
-        As a demonstration, you can join our actual Bio DAO Discord server to see how an active scientific community operates:
+        As a demonstration, you can join our actual Bio DAO Discord server to see how an active
+        scientific community operates:
       </p>
-      
+
       <div className="space-y-3">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 font-medium text-sm text-blue-700 dark:text-blue-400">
@@ -498,22 +514,22 @@ export function BioDaoInviteDemo() {
             Experience our NFT and token gating systems
           </div>
         </div>
-        
+
         <div className="bg-white dark:bg-blue-950/50 p-3 rounded-md border border-blue-200 dark:border-blue-800 flex items-center justify-between">
           <div className="font-medium text-blue-700 dark:text-blue-400 overflow-hidden text-ellipsis">
             {inviteLink}
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="ml-2 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900"
             onClick={handleCopyLink}
           >
-            {copied ? "Copied!" : "Copy Link"}
+            {copied ? 'Copied!' : 'Copy Link'}
           </Button>
         </div>
-        
-        <Button 
+
+        <Button
           className="w-full bg-blue-600 hover:bg-blue-700 text-white"
           onClick={() => window.open(inviteLink, '_blank')}
         >

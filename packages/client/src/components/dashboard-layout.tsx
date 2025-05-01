@@ -3,12 +3,20 @@
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { UserLevelDisplay } from './user-level-display';
-import { BadgeCheck, ArrowRight, Rocket, Star, Crown } from 'lucide-react';
+import { BadgeCheck, ArrowRight, Rocket, Star, Crown, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { LevelRequirementsPanel } from './level-requirements-panel';
 import { agentLevels } from '../config/agent-levels';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { useDashboardData } from '../hooks/use-dashboard-data';
+import { Badge } from './ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // Level 1 - Inception Stage: Science NFT Minting
 
@@ -254,21 +262,186 @@ function Level4CompletionScreen({
   );
 }
 
-function LevelRequirementsList({ level }: { level: number }) {
+// Component to show Level 1/2 NFT & Discord Status
+function Level1And2MetricsDisplay({
+  level,
+  nfts,
+  discordStats,
+  project,
+}: {
+  level: number;
+  nfts: any[];
+  discordStats: any;
+  project: any;
+}) {
+  // Find specific NFTs
+  const ideaNFT = nfts?.find((nft) => nft.type === 'idea');
+  const visionNFT = nfts?.find((nft) => nft.type === 'vision');
+  const discordMemberRequirement = 4; // For level 2 completion
+
+  // Function to render NFT status with image
+  const renderNFTStatus = (nft: any, type: string, name: string) => {
+    const isMinted = !!nft;
+    const imageUrl = nft?.imageUrl;
+    const displayImageUrl = imageUrl?.startsWith('/')
+      ? `${import.meta.env.VITE_PUBLIC_API_URL}${imageUrl}`
+      : imageUrl;
+
+    return (
+      <div className="flex items-center justify-between p-2 border rounded mb-2 bg-background">
+        <div className="flex items-center gap-2">
+          {isMinted && imageUrl ? (
+            <img
+              src={displayImageUrl}
+              alt={`${name} NFT`}
+              className="w-10 h-10 object-cover rounded"
+            />
+          ) : isMinted ? (
+            <div className="w-10 h-10 bg-muted rounded flex items-center justify-center text-xs">
+              No Img
+            </div>
+          ) : (
+            <div className="w-10 h-10 bg-muted rounded flex items-center justify-center">?</div>
+          )}
+          <span className="text-sm font-medium">{name} NFT</span>
+        </div>
+        {isMinted ? (
+          <BadgeCheck className="h-5 w-5 text-green-500" />
+        ) : (
+          <span className="text-xs text-muted-foreground">Not Minted</span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Science NFTs (Level 1)</CardTitle>
+          <CardDescription>Mint your core project NFTs.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {renderNFTStatus(ideaNFT, 'idea', 'Idea')}
+          {renderNFTStatus(visionNFT, 'vision', 'Vision')}
+
+          {level === 1 && (!ideaNFT || !visionNFT) && (
+            <p className="text-sm text-muted-foreground mt-3">
+              Use the agent chat to mint your required Idea and Vision NFTs.
+            </p>
+          )}
+          {level === 1 && ideaNFT && visionNFT && (
+            <p className="text-sm text-green-600 mt-3 flex items-center gap-1">
+              <BadgeCheck className="h-4 w-4" /> All required NFTs minted! Interact with them to
+              progress.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Community Status (Level 2)</CardTitle>
+          <CardDescription>Establish your Discord presence.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Discord Created Status */}
+          <div className="flex items-center justify-between mb-3">
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-primary"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              Discord Server
+            </span>
+            {discordStats ? (
+              <BadgeCheck className="h-5 w-5 text-green-500" />
+            ) : (
+              <span className="text-xs text-muted-foreground">Not Created</span>
+            )}
+          </div>
+
+          {/* Discord Member Count Status*/}
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-primary"
+              >
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+              Discord Members
+            </span>
+            <span
+              className={`text-sm font-medium ${discordStats?.memberCount >= discordMemberRequirement ? 'text-green-600' : ''}`}
+            >
+              <strong>{discordStats?.memberCount || 0}</strong>/{discordMemberRequirement}
+            </span>
+          </div>
+
+          {level === 1 && (
+            <p className="text-sm text-muted-foreground mt-3">
+              Use the agent chat to set up your Discord server (Requirement for Level 2).
+            </p>
+          )}
+          {level === 2 && !discordStats && (
+            <p className="text-sm text-muted-foreground mt-3">
+              Use the agent chat to set up your Discord server and invite members.
+            </p>
+          )}
+          {level === 2 && discordStats && discordStats.memberCount < discordMemberRequirement && (
+            <p className="text-sm text-muted-foreground mt-3">
+              Invite members to your Discord server to reach the goal of {discordMemberRequirement}.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function LevelRequirementsList({ level, currentLevel }: { level: number; currentLevel?: number }) {
   const levelData = agentLevels[level];
 
   if (!levelData) return null;
+  const isCompleted = currentLevel && level < currentLevel;
+  const isCurrent = currentLevel && level === currentLevel;
 
   return (
-    <Card className="mb-6">
+    <Card className={`mb-6 ${isCompleted ? 'opacity-70 border-dashed' : ''}`}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {level < 4 ? (
-            <Star className="h-5 w-5 text-primary" />
-          ) : (
-            <Crown className="h-5 w-5 text-amber-500" />
-          )}
-          Level {level}: {levelData.name}
+        <CardTitle className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            {level < 4 ? (
+              <Star className="h-5 w-5 text-primary" />
+            ) : (
+              <Crown className="h-5 w-5 text-amber-500" />
+            )}
+            Level {level}: {levelData.name}
+          </span>
+          {isCompleted && <BadgeCheck className="h-6 w-6 text-green-500" />}
+          {isCurrent && <Badge className="text-xs">Current Level</Badge>}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -276,20 +449,30 @@ function LevelRequirementsList({ level }: { level: number }) {
 
         {levelData.levelupRequirements.length > 0 ? (
           <>
-            <h4 className="font-medium mb-2">Requirements:</h4>
+            <h4 className="font-medium mb-2">Requirements to reach Level {level + 1}:</h4>
             <ul className="space-y-2 mb-4">
               {levelData.levelupRequirements.map((req, index) => (
                 <li key={index} className="flex items-start gap-2 text-sm">
-                  <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs">{index + 1}</span>
+                  <div
+                    className={`h-5 w-5 rounded-full ${isCompleted ? 'bg-green-100' : 'bg-primary/10'} flex items-center justify-center shrink-0 mt-0.5`}
+                  >
+                    {isCompleted ? (
+                      <BadgeCheck className="h-3 w-3 text-green-600" />
+                    ) : (
+                      <span className="text-xs">{index + 1}</span>
+                    )}
                   </div>
-                  <span>{req}</span>
+                  <span className={isCompleted ? 'line-through text-muted-foreground' : ''}>
+                    {req}
+                  </span>
                 </li>
               ))}
             </ul>
           </>
         ) : (
-          <p className="text-sm mb-4">Maximum level achieved. No additional requirements.</p>
+          level === 4 && (
+            <p className="text-sm mb-4">Maximum level achieved. Continue growing your DAO!</p>
+          )
         )}
       </CardContent>
     </Card>
@@ -355,14 +538,17 @@ function DiscordTutorialVideo() {
 export function DashboardLayout() {
   const { level, project, discordStats, nfts, progress, isLoading, error, refresh } =
     useDashboardData();
-  const [userLevel, setUserLevel] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState('progress');
+  const [userLevel, setUserLevel] = useState<number>(1); // Actual current level
+  const [viewedLevel, setViewedLevel] = useState<number>(1); // Level being viewed
 
   // Update userLevel whenever level changes or when project data loads
   useEffect(() => {
     // Only update if level is available and valid
     if (level && typeof level === 'number') {
       setUserLevel(level);
+      // Only update viewedLevel if it hasn't been manually changed by the user yet,
+      // or if the user's actual level increases beyond the currently viewed one.
+      setViewedLevel((currentViewed) => (level >= currentViewed ? level : currentViewed));
     }
   }, [level]);
 
@@ -431,168 +617,40 @@ export function DashboardLayout() {
     </div>
   );
 
-  const renderProgressContent = () => {
-    if (isLoading) {
-      return (
-        <div className="space-y-6">
-          <h2 className="text-xl font-semibold">Level Progress</h2>
-          {renderSkeletonLevelRequirements()}
-          <h3 className="text-lg font-medium mt-6">Next Level Preview</h3>
-          {renderSkeletonLevelRequirements()}
-        </div>
+  // Level Navigation Dropdown
+  const renderLevelNavigator = () => {
+    const options = [];
+    for (let i = 1; i <= userLevel; i++) {
+      options.push(
+        <SelectItem key={i} value={i.toString()}>
+          Level {i} {i === userLevel ? '(Current)' : i < userLevel ? '(Completed)' : ''}
+        </SelectItem>
       );
     }
 
-    return (
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold">Level Progress</h2>
-
-        {/* Current Level Display */}
-        <LevelRequirementsList level={userLevel} />
-
-        {/* Next Level Preview (if not max level) */}
-        {userLevel < 4 && (
-          <>
-            <h3 className="text-lg font-medium mt-6">Next Level Preview</h3>
-            <LevelRequirementsList level={userLevel + 1} />
-          </>
-        )}
-      </div>
-    );
-  };
-
-  const renderMetricsContent = () => {
-    if (isLoading) {
-      return renderSkeletonMetrics();
-    }
-
-    // For level 3, show Discord metrics
-    if (userLevel === 3) {
+    // Only show navigator if user is past level 1
+    if (userLevel > 1) {
       return (
-        <div className="space-y-6">
-          <h2 className="text-xl font-semibold">Level 3: Discord Metrics</h2>
-          <DiscordMetricsDisplay metrics={metricsData} />
+        <div className="mb-6 flex items-center gap-2 border-b pb-4">
+          <label
+            htmlFor="level-select"
+            className="text-sm font-medium text-muted-foreground shrink-0"
+          >
+            Navigate Levels:
+          </label>
+          <Select
+            value={viewedLevel.toString()}
+            onValueChange={(value) => setViewedLevel(parseInt(value))}
+          >
+            <SelectTrigger id="level-select" className="w-[200px] h-9">
+              <SelectValue placeholder="Select level..." />
+            </SelectTrigger>
+            <SelectContent>{options}</SelectContent>
+          </Select>
         </div>
       );
     }
-    // For level 4, show completion screen
-    else if (userLevel === 4) {
-      return (
-        <div className="space-y-6">
-          <h2 className="text-xl font-semibold">Level 4: Ecosystem Partner</h2>
-          <Level4CompletionScreen memberCount={metricsData.members} nftCount={nfts?.length || 0} />
-        </div>
-      );
-    }
-    // For levels 1-2, show basic status metrics
-    else {
-      return (
-        <div className="space-y-6">
-          <h2 className="text-xl font-semibold">Current Status</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">NFT Progress</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-lg">
-                  <div className="bg-primary/10 p-2 rounded-full">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-primary"
-                    >
-                      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-                      <circle cx="9" cy="9" r="2" />
-                      <path d="M15 8h.01" />
-                      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-                    </svg>
-                  </div>
-                  <span>
-                    NFTs Minted: <strong>{nfts?.length || 0}</strong>/2
-                  </span>
-                </div>
-
-                {userLevel === 1 && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Use the agent chat to mint science NFTs for your project.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Community Status</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-lg">
-                  <div className="bg-primary/10 p-2 rounded-full">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-primary"
-                    >
-                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
-                  </div>
-                  <span>
-                    Members: <strong>{metricsData.members}</strong>
-                    {userLevel === 2 ? '/4' : userLevel >= 3 ? '/10' : ''}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 mt-3 text-lg">
-                  <div className="bg-primary/10 p-2 rounded-full">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-primary"
-                    >
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                  </div>
-                  <span>
-                    Discord: <strong>{userLevel >= 2 ? 'Created' : 'Not Created'}</strong>
-                  </span>
-                </div>
-
-                {userLevel === 1 && (
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Use the agent chat to set up your Discord server and invite members.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      );
-    }
+    return null; // Don't show navigator at level 1
   };
 
   return (
@@ -604,25 +662,62 @@ export function DashboardLayout() {
         </div>
 
         <div className="lg:w-2/3">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6 w-full">
-              <TabsTrigger value="progress" className="flex-1">
-                Level Progress
-              </TabsTrigger>
-              <TabsTrigger value="metrics" className="flex-1">
-                Status Metrics
-              </TabsTrigger>
-            </TabsList>
+          {/* Use Level Navigator Dropdown */}
+          {renderLevelNavigator()}
 
-            <TabsContent value="progress" className="space-y-4">
-              {renderProgressContent()}
-            </TabsContent>
+          {/* Display Content Directly */}
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold mb-4">Details for Level {viewedLevel}</h2>
 
-            <TabsContent value="metrics" className="space-y-4">
-              {renderMetricsContent()}
-            </TabsContent>
-          </Tabs>
+            {/* Display Requirements for the viewed level */}
+            {isLoading ? (
+              renderSkeletonLevelRequirements()
+            ) : (
+              <LevelRequirementsList level={viewedLevel} currentLevel={userLevel} />
+            )}
 
+            {/* Display Status/Metrics for the viewed level */}
+            <div className="mt-6">
+              <h3 className="text-lg font-medium mb-4">Status & Metrics</h3>
+              {isLoading
+                ? renderSkeletonMetrics()
+                : (() => {
+                    switch (viewedLevel) {
+                      case 1:
+                      case 2:
+                        return (
+                          <Level1And2MetricsDisplay
+                            level={viewedLevel}
+                            nfts={nfts}
+                            discordStats={discordStats}
+                            project={project}
+                          />
+                        );
+                      case 3:
+                        return <DiscordMetricsDisplay metrics={metricsData} />;
+                      case 4:
+                        return (
+                          <Level4CompletionScreen
+                            memberCount={metricsData.members}
+                            nftCount={nfts?.length || 0}
+                          />
+                        );
+                      default:
+                        return <div>Select a level to view details.</div>;
+                    }
+                  })()}
+              {/* Show tutorial video only when viewing level 2      {viewedLevel === 2 && <DiscordTutorialVideo />} */}
+            </div>
+
+            {/* Add a button to go back to current level view */}
+            {viewedLevel !== userLevel && (
+              <Button variant="outline" onClick={() => setViewedLevel(userLevel)} className="mt-6">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Go to Current Level ({userLevel})
+              </Button>
+            )}
+          </div>
+
+          {/* Keep the "How to Progress" info box */}
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-6">
             <h3 className="font-medium text-amber-800 flex items-center gap-2">
               <svg
@@ -645,7 +740,7 @@ export function DashboardLayout() {
             <p className="text-amber-700 text-sm mt-1">
               Use the chat with our AI agent to complete tasks and progress to the next level. The
               dashboard shows your current progress but all actions must be taken through the agent
-              chat.
+              chat. You can view previous level details using the navigation dropdown above.
             </p>
           </div>
         </div>

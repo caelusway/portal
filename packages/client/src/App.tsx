@@ -12,13 +12,14 @@ import useVersion from './hooks/use-version';
 import { apiClient } from './lib/api';
 import Room from './routes/room';
 import Home from './routes/home';
-import Settings from './routes/settings';
+import AgentSettings from './routes/settings';
 import EnvSettings from './components/env-settings';
 import { WelcomeFormProvider } from './lib/welcome-form-context';
 import { PrivyAuthProvider } from './lib/auth-provider';
 import { DashboardLayout } from './components/dashboard-layout';
 import { WagmiProviderWrapper } from './lib/wagmi-provider';
 import ProfilePage from './pages/profile';
+import SettingsPage from './pages/settings';
 import CoreAgentRoute from './routes/core-agent';
 import { UserLevelProvider } from './lib/user-level.tsx';
 import { CoreAgent } from './components/agent/core-agent';
@@ -103,11 +104,12 @@ function App() {
                             <Route path="/" element={<Home />} />
                             <Route path="/chat" element={<CoreAgent />} />
                             <Route path="chat/:agentId" element={<Chat />} />
-                            <Route path="/settings" element={<Settings />} />
+                            <Route path="/settings/agent" element={<AgentSettings />} />
                             <Route path="/room/:serverId" element={<Room />} />
                             <Route path="/env-settings" element={<EnvSettings />} />
                             <Route path="/dashboard" element={<DashboardLayout />} />
                             <Route path="/profile" element={<ProfilePage />} />
+                            <Route path="/settings" element={<SettingsPage />} />
                             <Route path="/logs" element={<LogViewer />} />
                           </Routes>
                         </SidebarInset>

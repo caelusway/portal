@@ -25,6 +25,8 @@ import {
   FlaskConical,
   Bot,
   LogOut,
+  Users,
+  Settings,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
@@ -164,7 +166,7 @@ export function AppSidebar() {
                       <NavLink to="/profile">
                         <SidebarMenuButton
                           isActive={location.pathname === '/profile'}
-                          className="transition-colors px-4 my-4 h-full py-1 rounded-md"
+                          className="transition-colors px-4 h-full py-1 rounded-md"
                         >
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 flex justify-center items-center">
@@ -175,6 +177,27 @@ export function AppSidebar() {
                               </div>
                             </div>
                             <span className="text-base">My Profile</span>
+                          </div>
+                        </SidebarMenuButton>
+                      </NavLink>
+                    </SidebarMenuItem>
+
+                    {/* Settings Menu Item */}
+                    <SidebarMenuItem>
+                      <NavLink to="/settings">
+                        <SidebarMenuButton
+                          isActive={location.pathname === '/settings'}
+                          className="transition-colors px-4 h-full py-1 rounded-md"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 flex justify-center items-center">
+                              <div className="relative bg-gray-600 rounded-full w-full h-full">
+                                <div className="text-sm rounded-full h-full w-full flex justify-center items-center overflow-hidden">
+                                  <Settings className="w-5 h-5 text-white" />
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-base">Settings</span>
                           </div>
                         </SidebarMenuButton>
                       </NavLink>

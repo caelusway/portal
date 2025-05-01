@@ -13,6 +13,7 @@ export interface AgentLevel {
     messagesSent?: number;
     discordCreated?: boolean;
     nftsMinted?: number;
+    nftsReviewed?: boolean;
   };
   suggestedActions?: {
     label: string;
@@ -26,17 +27,18 @@ export const agentLevels: Record<number, AgentLevel> = {
   1: {
     level: 1,
     name: 'Inception Stage',
-    description: 'Begin your scientific journey by minting your first science NFTs.',
+    description:
+      'Review the core Idea and Vision science NFTs automatically generated for your project.',
     entryMessage:
-      "Welcome to BioDAO! Let's start by minting your first science NFTs to establish your project's foundation.",
-    levelupRequirements: ['Mint 3 Science NFTs'],
-    capabilities: ['NFT minting', 'Scientific documentation', 'Project setup assistance'],
+      'We have automatically generated the foundational Idea and Vision NFTs for your project. Please review them to continue.',
+    levelupRequirements: ['Review your minted Idea & Vision NFTs'],
+    capabilities: ['NFT viewing', 'Scientific documentation access', 'Project overview'],
     metricRequirements: {
-      nftsMinted: 3,
+      nftsReviewed: true,
     },
     suggestedActions: [
       {
-        label: 'Mint Science NFTs 🧪',
+        label: 'View My Science NFTs 🧬',
         actionType: 'show_module',
         actionTarget: 'science_bank',
       },
@@ -138,14 +140,14 @@ export const agentLevels: Record<number, AgentLevel> = {
 
 export const LEVELS = {
   1: {
-    label: 'Science NFT Creation',
+    label: 'Science NFT Review',
     entryMessage:
-      "Welcome to BioProtocol! I'm CoreAgent, your guide to launching your DeSci project. Let's start by creating Science NFTs for your scientific concept.",
-    requirements: ['Create Idea NFT', 'Create Vision NFT'],
-    capabilities: ['Science NFT Creation'],
+      "Welcome to BioProtocol! I'm CoreAgent. We've automatically created the initial Idea and Vision NFTs for your concept. Let's review them.",
+    requirements: ['Review Idea NFT', 'Review Vision NFT'],
+    capabilities: ['Science NFT Display'],
     suggestedActions: [
-      'Can you help me create my Science NFTs?',
-      'What is the BioProtocol?',
+      'Show me my Science NFTs',
+      'What do my Idea and Vision NFTs represent?',
       'How do Science NFTs work?',
     ],
   },
