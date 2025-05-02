@@ -557,13 +557,13 @@ export function CoreAgent() {
         case 'level_up':
           setUserLevel(data.newLevel || userLevel + 1);
           setSidebarUserLevel(data.newLevel || userLevel + 1);
-          checkProgress();
-          refresh();
           toast({
             title: 'Level Up!',
             description: data.message || 'You advanced a level!',
             duration: 5000,
           });
+          checkProgress();
+          refresh();
           break;
         case 'level':
           setUserLevel(data.level || userLevel);

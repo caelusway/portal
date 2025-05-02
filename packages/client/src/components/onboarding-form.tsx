@@ -118,6 +118,8 @@ export function WelcomeForm() {
             team_members: project.teamMembers,
             motivation: project.motivation,
             progress: project.progress,
+            project_links: project.projectLinks,
+            referral_source: project.referralSource,
             // Safely handle date conversion
             created_at:
               project.createdAt instanceof Date
