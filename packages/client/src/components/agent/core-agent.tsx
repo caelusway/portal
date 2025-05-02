@@ -583,7 +583,6 @@ export function CoreAgent() {
         case 'discord_bot_installed':
           if (data.discord) {
             setSidebarDiscordStats(data.discord);
-            checkProgress();
             refresh();
           }
           break;
