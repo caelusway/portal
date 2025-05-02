@@ -593,6 +593,7 @@ export function CoreAgent() {
             refresh();
           }
           break;
+
         case 'chat_history':
           if (data.messages && Array.isArray(data.messages)) {
             const formattedMessages = data.messages.map((msg: ServerChatMessage) => ({
