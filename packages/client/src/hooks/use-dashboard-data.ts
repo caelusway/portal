@@ -21,7 +21,7 @@ interface DashboardOptions {
  * Custom hook to fetch and manage all dashboard data
  */
 export function useDashboardData(options: DashboardOptions = {}) {
-  const { discordPollingInterval = 30000 } = options;
+  const { discordPollingInterval = 5000 } = options;
   const { user } = useAuth();
   const privyId = user?.id;
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
