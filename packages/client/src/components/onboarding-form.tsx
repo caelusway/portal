@@ -87,8 +87,10 @@ export function WelcomeForm() {
           wallet: embeddedWallet?.address,
           fullName: values.fullName,
           email: values.email || user.email?.address || '', // Prioritize form email, fallback to Privy
+          referralSource: values.referralSource,
           projectName: values.projectName,
           projectDescription: values.projectDescription,
+          projectLinks: values.projectLinks,
           projectVision: values.projectVision,
           scientificReferences: values.scientificReferences,
           credentialLinks: values.credentialLinks,

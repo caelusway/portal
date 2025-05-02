@@ -8,8 +8,10 @@ export interface Project {
   level: number;
   fullName?: string;
   email?: string;
+  referralSource?: string;
   projectName?: string;
   projectDescription?: string;
+  projectLinks?: string;
   projectVision?: string;
   scientificReferences?: string;
   credentialLinks?: string;

@@ -117,6 +117,11 @@ const typingAnimationCSS = `
     line-height: 1.7;
     font-size: 0.9rem;
     color: var(--foreground, #111);
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+    hyphens: auto;
+    max-width: 100%;
   }
 
   .markdown-content h1,
@@ -143,6 +148,7 @@ const typingAnimationCSS = `
   .markdown-content a {
     color: #3b82f6;
     text-decoration: underline;
+    word-break: break-all;
   }
 
   .markdown-content code {
@@ -151,6 +157,23 @@ const typingAnimationCSS = `
     border-radius: 0.2rem;
     font-family: monospace;
     font-size: 0.9em;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .markdown-content pre {
+    background: #f4f4f5;
+    padding: 0.5rem;
+    border-radius: 0.2rem;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    max-width: 100%;
+  }
+
+  .markdown-content pre code {
+    background: transparent;
+    padding: 0;
+    white-space: pre-wrap;
   }
 
   .markdown-content blockquote {
@@ -166,6 +189,7 @@ const typingAnimationCSS = `
   }
 
   .chatgpt-bubble {
+    max-width: 65%;
     padding: 0.3rem 0.5rem;
     border-radius: 0.65rem;
     font-size: 0.9rem;
@@ -205,7 +229,7 @@ const MemoizedMessageContent = React.memo(
       // Regex to match URLs
       const urlRegex = /(https?:\/\/[^\s]+)/g;
       return content.replace(urlRegex, (url) => {
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #3b82f6; text-decoration: underline;">${url}</a>`;
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #3b82f6; text-decoration: underline; word-break: break-all;">${url}</a>`;
       });
     };
 
@@ -235,7 +259,7 @@ const MemoizedMessageContent = React.memo(
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-700 hover:underline cursor-pointer"
+                className="text-blue-500 hover:text-blue-700 hover:underline cursor-pointer break-all"
                 {...props}
               />
             ),
@@ -259,11 +283,24 @@ const MemoizedMessageContent = React.memo(
               <li className="mb-2 ml-0" style={{ display: 'list-item' }} {...props} />
             ),
             // Style paragraphs
-            p: ({ node, ...props }) => <p className="mb-3" {...props} />,
+            p: ({ node, ...props }) => <p className="mb-3 break-words" {...props} />,
             // Style headings
-            h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2" {...props} />,
-            h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-3 mb-2" {...props} />,
-            h3: ({ node, ...props }) => <h3 className="text-md font-bold mt-2 mb-2" {...props} />,
+            h1: ({ node, ...props }) => (
+              <h1 className="text-xl font-bold mt-4 mb-2 break-words" {...props} />
+            ),
+            h2: ({ node, ...props }) => (
+              <h2 className="text-lg font-bold mt-3 mb-2 break-words" {...props} />
+            ),
+            h3: ({ node, ...props }) => (
+              <h3 className="text-md font-bold mt-2 mb-2 break-words" {...props} />
+            ),
+            // Add better pre handling
+            pre: ({ node, ...props }) => (
+              <pre
+                className="overflow-x-auto whitespace-pre-wrap max-w-full p-2 bg-gray-100 rounded my-2"
+                {...props}
+              />
+            ),
           }}
         >
           {normalizeContent(content)}
@@ -273,8 +310,11 @@ const MemoizedMessageContent = React.memo(
 
     return (
       <div className="flex flex-col w-full">
-        <ChatBubbleMessage {...(message.isFromAgent ? {} : { variant: 'sent' })} className={''}>
-          <div className="py-2">
+        <ChatBubbleMessage
+          {...(message.isFromAgent ? {} : { variant: 'sent' })}
+          className="overflow-hidden"
+        >
+          <div className="py-2 break-words overflow-wrap">
             {/* For agent messages, always use Markdown but wrap with AIWriter for animation */}
             {shouldAnimate && message.isFromAgent ? (
               <AIWriter>
@@ -284,6 +324,7 @@ const MemoizedMessageContent = React.memo(
               <MarkdownContent content={message.content} />
             ) : (
               <div
+                className="break-words overflow-wrap"
                 dangerouslySetInnerHTML={{
                   __html: linkifyContent(normalizeContent(message.content)),
                 }}
@@ -1072,7 +1113,7 @@ export function CoreAgent() {
           <div className="flex flex-grow overflow-hidden">
             <div className={cn('flex-grow overflow-hidden flex flex-col', showDetails && 'w-full')}>
               <ScrollArea className="flex-grow p-4" ref={scrollRef} onScroll={checkIsAtBottom}>
-                <div className="space-y-4">
+                <div className="space-y-4 max-w-full">
                   {messages.length === 0 ? (
                     <div className="text-center text-muted-foreground py-8">
                       <MessageSquare className="mx-auto h-12 w-12 opacity-20 mb-2" />
@@ -1165,10 +1206,10 @@ export function CoreAgent() {
                           >
                             <ChatBubble
                               variant={message.isFromAgent ? 'received' : 'sent'}
-                              className="flex flex-row items-end gap-2"
+                              className="flex flex-row items-end gap-2 max-w-full"
                             >
                               {message.isFromAgent && (
-                                <Avatar className="size-8 border rounded-full select-none mb-2">
+                                <Avatar className="size-8 border rounded-full select-none mb-2 flex-shrink-0">
                                   <AvatarImage src="/bioicon.png" />
                                 </Avatar>
                               )}
@@ -1186,7 +1227,7 @@ export function CoreAgent() {
                   {isLoading && (
                     <div className="flex justify-start">
                       <ChatBubble variant="received" className="flex flex-row items-end gap-2">
-                        <Avatar className="size-8 border rounded-full select-none mb-2">
+                        <Avatar className="size-8 border rounded-full select-none mb-2 flex-shrink-0">
                           <AvatarImage src="/bioicon.png" />
                         </Avatar>
                         <ChatBubbleMessage>
