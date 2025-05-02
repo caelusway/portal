@@ -3,8 +3,10 @@ import { z } from 'zod';
 export const formSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email'),
+  referralSource: z.string().optional(),
   projectName: z.string().min(2, 'Project name must be at least 2 characters'),
   projectDescription: z.string().min(10, 'Please provide a more detailed project description'),
+  projectLinks: z.string().optional(),
   projectVision: z.string().min(10, 'Please provide a more detailed project vision'),
   scientificReferences: z.string().min(5, 'Please provide at least one scientific reference'),
   credentialLinks: z.string().min(5, 'Please provide at least one credential link'),
@@ -49,6 +51,13 @@ export const formPages: FormPage[] = [
         type: 'email',
       },
       {
+        id: 'referralSource',
+        label: 'Did anyone refer you?',
+        placeholder: 'Name of person, organization, or where you heard about us',
+        type: 'text',
+        description: 'Optional - Let us know if someone referred you to the BioDAO portal',
+      },
+      {
         id: 'projectName',
         label: 'Project Name',
         placeholder: 'Enter your project name',
@@ -74,6 +83,13 @@ export const formPages: FormPage[] = [
         placeholder: 'What could the world look like if your project is successful?',
         type: 'textarea',
         description: 'Describe your long-term vision and the impact you hope to achieve.',
+      },
+      {
+        id: 'projectLinks',
+        label: 'Project Links',
+        placeholder: 'Any relevant links describing your project (linktree, website, deck, etc.)',
+        type: 'textarea',
+        description: 'Optional - Share links to any existing project materials (one per line)',
       },
       {
         id: 'scientificReferences',

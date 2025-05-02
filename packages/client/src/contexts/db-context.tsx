@@ -20,11 +20,18 @@ export interface Project {
   description: string | null;
   vision: string | null;
   level: number;
-  scientificReferences: string | null;
-  credentialLinks: string | null;
-  teamDescription: string | null;
-  motivation: string | null;
-  progress: string | null;
+  fullName?: string;
+  email?: string;
+  referralSource?: string;
+  projectName?: string;
+  projectDescription?: string;
+  projectLinks?: string;
+  projectVision?: string;
+  scientificReferences?: string;
+  credentialLinks?: string;
+  teamMembers?: string;
+  motivation?: string;
+  progress?: string;
   createdAt: Date;
   updatedAt: Date;
   // Relations
