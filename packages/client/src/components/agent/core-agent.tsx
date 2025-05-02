@@ -407,9 +407,10 @@ export function CoreAgent() {
     (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
   );
 
-  // Add missing NFT minting state
+  // Add state for the selected NFT
   const [isMintingNFT, setIsMintingNFT] = useState(false);
   const [mintingNFTType, setMintingNFTType] = useState<string | null>(null);
+  const [selectedNFT, setSelectedNFT] = useState<any | null>(null);
 
   // State for Discord stats and user level (for real-time sidebar updates)
   const [sidebarDiscordStats, setSidebarDiscordStats] = useState(discordStats);
@@ -1041,7 +1042,11 @@ export function CoreAgent() {
     return (
       <div className="grid grid-cols-2 gap-4 mt-2">
         {nfts.map((nft: any) => (
-          <div key={nft.id} className="border rounded-lg p-2 bg-card">
+          <div
+            key={nft.id}
+            className="border rounded-lg p-2 bg-card cursor-pointer hover:bg-muted/30 transition-colors"
+            onClick={() => setSelectedNFT(nft)}
+          >
             {nft.imageUrl ? (
               <img
                 src={
@@ -1073,6 +1078,106 @@ export function CoreAgent() {
     const walletStr = typeof address === 'string' ? address : String(address);
     if (walletStr.length < 10) return walletStr;
     return `${walletStr.substring(0, 6)}...${walletStr.substring(walletStr.length - 4)}`;
+  };
+
+  // Add NFT Detail Popup component right before the return statement
+  const NFTDetailPopup = ({ nft, onClose }: { nft: any; onClose: () => void }) => {
+    if (!nft) return null;
+
+    // Cast project to any to avoid TypeScript errors
+    const projectData = project as any;
+
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <div
+          className="bg-background rounded-lg shadow-lg max-w-2xl w-full max-h-[80vh] overflow-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-xl font-semibold">
+                {nft.type.charAt(0).toUpperCase() + nft.type.slice(1)} NFT
+              </h3>
+              <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-6">
+              <div className="w-full md:w-1/3">
+                {nft.imageUrl ? (
+                  <img
+                    src={
+                      nft.imageUrl.startsWith('/')
+                        ? `${import.meta.env.VITE_PUBLIC_API_URL}${nft.imageUrl}`
+                        : nft.imageUrl
+                    }
+                    alt={`${nft.type} NFT`}
+                    className="w-full aspect-square object-cover rounded-md"
+                  />
+                ) : (
+                  <div className="w-full aspect-square bg-muted flex items-center justify-center rounded-md">
+                    No Image
+                  </div>
+                )}
+
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm font-medium flex items-center justify-between">
+                    <span>Minted</span>
+                    <span>{new Date(nft.mintedAt).toLocaleString()}</span>
+                  </p>
+                  {nft.transactionHash && (
+                    <p className="text-sm font-medium flex items-center justify-between">
+                      <span>Transaction</span>
+                      <a
+                        href={`https://basescan.io/tx/${nft.transactionHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-500 hover:underline truncate max-w-[150px]"
+                      >
+                        {nft.transactionHash.substring(0, 6)}...
+                        {nft.transactionHash.substring(nft.transactionHash.length - 4)}
+                      </a>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="w-full md:w-2/3 space-y-4">
+                {nft.type === 'idea' && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-1">
+                      Project Description
+                    </h4>
+                    <p className="text-sm">
+                      {projectData?.projectDescription ||
+                        projectData?.description ||
+                        'No description available'}
+                    </p>
+                  </div>
+                )}
+
+                {nft.type === 'vision' && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-muted-foreground mb-1">
+                      Project Vision
+                    </h4>
+                    <p className="text-sm">
+                      {projectData?.projectVision ||
+                        projectData?.vision ||
+                        'No vision statement available'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Main component UI when everything is loaded
@@ -1385,6 +1490,9 @@ export function CoreAgent() {
           </div>
         </Card>
       </div>
+
+      {/* Add the NFT popup at the end of the component */}
+      {selectedNFT && <NFTDetailPopup nft={selectedNFT} onClose={() => setSelectedNFT(null)} />}
 
       {!isAtBottom && (
         <Button
