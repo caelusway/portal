@@ -82,7 +82,14 @@ export async function upsertProject(data: {
   email?: string;
   projectName?: string;
   projectDescription?: string;
+  projectLinks?: string;
+  referralSource?: string;
   projectVision?: string;
+  scientificReferences?: string;
+  credentialLinks?: string;
+  teamMembers?: string;
+  motivation?: string;
+  progress?: string;
 }) {
   return apiCall('/api/projects', 'POST', data);
 }

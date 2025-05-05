@@ -112,61 +112,71 @@ export function WelcomeForm() {
           teamDescription: values.teamMembers,
           motivation: values.motivation,
           progress: values.progress,
-          level: 1, // Starting level
         };
 
-        const project = await createProject(projectData, bioUser.id);
-        console.log('Project created:', project);
+        try {
+          // 2. Create/Update the project using the database context
+          const project = await createProject(projectData, bioUser.id);
+          console.log('Project created/updated via database context:', project);
 
-        // 3. Add the user as a project member (this would happen automatically on the backend)
+          // Convert project to profile for compatibility
+          const profile = {
+            id: project.id,
+            privy_id: user.id,
+            full_name: values.fullName,
+            email: values.email || user.email?.address || '',
+            project_name: values.projectName,
+            project_description: values.projectDescription,
+            project_vision: values.projectVision,
+            scientific_references: values.scientificReferences,
+            credential_links: values.credentialLinks,
+            team_members: values.teamMembers,
+            motivation: values.motivation,
+            progress: values.progress,
+            // Safely handle date conversion
+            created_at:
+              project.createdAt instanceof Date
+                ? project.createdAt.toISOString()
+                : typeof project.createdAt === 'string'
+                  ? project.createdAt
+                  : new Date().toISOString(),
+            updated_at:
+              project.updatedAt instanceof Date
+                ? project.updatedAt.toISOString()
+                : typeof project.updatedAt === 'string'
+                  ? project.updatedAt
+                  : new Date().toISOString(),
+            level: project.level,
+          } as Profile;
 
-        // Convert project to profile for compatibility with existing code
-        const profile = {
-          id: project.id,
-          privy_id: bioUser.privyId,
-          full_name: bioUser.fullName,
-          email: bioUser.email,
-          project_name: project.name,
-          project_description: project.description,
-          project_vision: project.vision,
-          scientific_references: project.scientificReferences,
-          credential_links: project.credentialLinks,
-          team_members: project.teamDescription,
-          motivation: project.motivation,
-          progress: project.progress,
-          // Safely handle date conversion
-          created_at:
-            project.createdAt instanceof Date
-              ? project.createdAt.toISOString()
-              : typeof project.createdAt === 'string'
-                ? project.createdAt
-                : new Date().toISOString(),
-          updated_at:
-            project.updatedAt instanceof Date
-              ? project.updatedAt.toISOString()
-              : typeof project.updatedAt === 'string'
-                ? project.updatedAt
-                : new Date().toISOString(),
-          level: project.level,
-        } as Profile;
+          setSubmittedProfile(profile);
 
-        setSubmittedProfile(profile);
+          // Success toast
+          toast({
+            title: 'Profile created successfully',
+            description: "Your profile has been saved and you're now at level 1!",
+            duration: 3000,
+          });
 
-        // Success toast
-        toast({
-          title: 'Profile created successfully',
-          description: "Your profile has been saved and you're now at level 1!",
-          duration: 3000,
-        });
+          // 4. Save to local context
+          submitForm(values);
 
-        // 4. Save to local context
-        submitForm(values);
+          // 5. Show the NFT minting option
+          setActiveTab('nft');
 
-        // 5. Show the NFT minting option
-        setActiveTab('nft');
-
-        // 6. Navigate to chat
-        navigate(`/chat`);
+          // 6. Navigate to chat
+          navigate(`/chat`);
+        } catch (error: any) {
+          console.error('Error submitting form:', error);
+          toast({
+            title: 'Error',
+            description: error.message || 'An unknown error occurred',
+            variant: 'destructive',
+            duration: 5000,
+          });
+        } finally {
+          setIsSubmitting(false);
+        }
       } else {
         toast({
           title: 'Authentication required',
@@ -174,16 +184,16 @@ export function WelcomeForm() {
           variant: 'destructive',
           duration: 3000,
         });
+        setIsSubmitting(false);
       }
     } catch (error: any) {
-      console.error('Error submitting form:', error);
+      console.error('Error processing form:', error);
       toast({
         title: 'Error',
         description: error.message || 'An unknown error occurred',
         variant: 'destructive',
         duration: 5000,
       });
-    } finally {
       setIsSubmitting(false);
     }
   };

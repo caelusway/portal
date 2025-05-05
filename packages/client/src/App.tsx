@@ -26,6 +26,7 @@ import { CoreAgent } from './components/agent/core-agent';
 import { DatabaseProvider } from './contexts/db-context';
 import { RequireOnboarding } from './lib/require-onboarding';
 import Chat from './routes/chat';
+import { RequireAuth } from './lib/require-auth';
 
 // Create protected route components
 //const ProtectedDashboard = RequireOnboarding(DashboardLayout);
@@ -102,15 +103,63 @@ function App() {
                         <SidebarInset>
                           <Routes>
                             <Route path="/" element={<Home />} />
-                            <Route path="/chat" element={<CoreAgent />} />
-                            <Route path="chat/:agentId" element={<Chat />} />
-                            <Route path="/settings/agent" element={<AgentSettings />} />
-                            <Route path="/room/:serverId" element={<Room />} />
+                            <Route
+                              path="/chat"
+                              element={
+                                <RequireAuth>
+                                  <CoreAgent />
+                                </RequireAuth>
+                              }
+                            />
+                            <Route
+                              path="chat/:agentId"
+                              element={
+                                <RequireAuth>
+                                  <Chat />
+                                </RequireAuth>
+                              }
+                            />
+                            <Route
+                              path="/settings"
+                              element={
+                                <RequireAuth>
+                                  <Settings />
+                                </RequireAuth>
+                              }
+                            />
+                            <Route
+                              path="/room/:serverId"
+                              element={
+                                <RequireAuth>
+                                  <Room />
+                                </RequireAuth>
+                              }
+                            />
                             <Route path="/env-settings" element={<EnvSettings />} />
-                            <Route path="/dashboard" element={<DashboardLayout />} />
-                            <Route path="/profile" element={<ProfilePage />} />
-                            <Route path="/settings" element={<SettingsPage />} />
-                            <Route path="/logs" element={<LogViewer />} />
+                            <Route
+                              path="/dashboard"
+                              element={
+                                <RequireAuth>
+                                  <DashboardLayout />
+                                </RequireAuth>
+                              }
+                            />
+                            <Route
+                              path="/profile"
+                              element={
+                                <RequireAuth>
+                                  <ProfilePage />
+                                </RequireAuth>
+                              }
+                            />
+                            <Route
+                              path="/logs"
+                              element={
+                                <RequireAuth>
+                                  <LogViewer />
+                                </RequireAuth>
+                              }
+                            />
                           </Routes>
                         </SidebarInset>
                       </SidebarProvider>
