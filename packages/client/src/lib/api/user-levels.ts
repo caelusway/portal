@@ -15,6 +15,66 @@ interface UserLevelResponse {
   updated_at: string;
 }
 
+const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+
+// Create API client with authentication
+const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<any> => {
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      ...options.headers,
+    };
+
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (response.status === 401) {
+      console.error('API key is invalid or missing');
+      throw new Error('API key is invalid or missing');
+    }
+
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}: ${response.statusText}`);
+    }
+
+    // For HEAD or no content requests
+    if (response.status === 204 || options.method === 'HEAD') {
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('API request error:', error);
+    throw error;
+  }
+};
+
+// API client with convenience methods
+const apiClient = {
+  get: (endpoint: string) => fetchWithAuth(`${API_URL}${endpoint}`),
+
+  post: (endpoint: string, data: any) =>
+    fetchWithAuth(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  patch: (endpoint: string, data: any) =>
+    fetchWithAuth(`${API_URL}${endpoint}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (endpoint: string) =>
+    fetchWithAuth(`${API_URL}${endpoint}`, {
+      method: 'DELETE',
+    }),
+};
+
 /**
  * Create a default user level using an RPC that bypasses RLS
  */
@@ -57,35 +117,32 @@ export async function getUserLevel(privyId: string): Promise<UserLevel | null> {
     return null;
   }
 
-  const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
-
   try {
     console.log(`[getUserLevel] Fetching level for user ${privyId} from Portal API...`);
-    const response = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
 
-    if (!response.ok) {
-      if (response.status === 404) {
+    try {
+      const project = await apiClient.get(`/api/projects/privy/${privyId}`);
+      console.log(`[getUserLevel] Project data retrieved:`, project);
+
+      // Create a UserLevel object from the project data
+      if (project && typeof project.level === 'number') {
+        return {
+          id: project.id,
+          privy_id: project.privyId,
+          level: project.level,
+          created_at: project.createdAt,
+          updated_at: project.updatedAt,
+        };
+      } else {
+        console.warn(`[getUserLevel] Retrieved project has invalid level data:`, project);
+        return null;
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) {
         console.warn(`[getUserLevel] No project found for privyId: ${privyId}`);
         return null;
       }
-      throw new Error(`Error fetching user level: ${response.statusText}`);
-    }
-
-    const project = await response.json();
-    console.log(`[getUserLevel] Project data retrieved:`, project);
-
-    // Create a UserLevel object from the project data
-    if (project && typeof project.level === 'number') {
-      return {
-        id: project.id,
-        privy_id: project.privyId,
-        level: project.level,
-        created_at: project.createdAt,
-        updated_at: project.updatedAt,
-      };
-    } else {
-      console.warn(`[getUserLevel] Retrieved project has invalid level data:`, project);
-      return null;
+      throw error;
     }
   } catch (error) {
     console.error(`Unexpected error in getUserLevel for ${privyId}:`, error);
@@ -103,16 +160,12 @@ export async function createOrUpdateUserLevel(privyId: string): Promise<UserLeve
     return null;
   }
 
-  const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
   console.log(`[createOrUpdateUserLevel] Checking for existing project for privyId: ${privyId}`);
 
   try {
     // 1. First try to get the existing project
-    const response = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
-
-    // 2. If project exists, return it with UserLevel format
-    if (response.ok) {
-      const project = await response.json();
+    try {
+      const project = await apiClient.get(`/api/projects/privy/${privyId}`);
       console.log(
         `[createOrUpdateUserLevel] Found existing project with level ${project.level} for ${privyId}.`
       );
@@ -124,6 +177,11 @@ export async function createOrUpdateUserLevel(privyId: string): Promise<UserLeve
         created_at: project.createdAt,
         updated_at: project.updatedAt,
       };
+    } catch (error) {
+      // If 404 or other error, proceed to create a new project
+      if (!(error instanceof Error && error.message.includes('404'))) {
+        console.error(`[createOrUpdateUserLevel] Error checking for existing project:`, error);
+      }
     }
 
     // 3. If project doesn't exist (404) or other error, create a new one
@@ -131,26 +189,11 @@ export async function createOrUpdateUserLevel(privyId: string): Promise<UserLeve
       `[createOrUpdateUserLevel] No existing project found for ${privyId}. Creating new project with level 1.`
     );
 
-    const createResponse = await fetch(`${API_URL}/api/projects/privy/${privyId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        level: 1,
-      }),
+    const newProject = await apiClient.post(`/api/projects/privy/${privyId}`, {
+      level: 1,
     });
 
-    if (!createResponse.ok) {
-      console.error(
-        `[createOrUpdateUserLevel] Error creating project for ${privyId}:`,
-        createResponse.statusText
-      );
-      return null;
-    }
-
     // 4. Return the newly created project in UserLevel format
-    const newProject = await createResponse.json();
     console.log(
       `[createOrUpdateUserLevel] Successfully created project with level 1 for ${privyId}.`
     );
@@ -185,44 +228,40 @@ export async function updateUserLevel(
     return { success: false, error: new Error('Invalid newLevel') };
   }
 
-  const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
   console.log(`Updating user level for ${privyId} to ${newLevel}...`);
 
   try {
     // First get the current project data
-    const getResponse = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
-
-    if (!getResponse.ok) {
-      console.error(`Error fetching project for ${privyId}:`, getResponse.statusText);
+    let project;
+    try {
+      project = await apiClient.get(`/api/projects/privy/${privyId}`);
+    } catch (error) {
+      console.error(`Error fetching project for ${privyId}:`, error);
       return {
         success: false,
-        error: new Error(`Failed to fetch project: ${getResponse.statusText}`),
+        error: new Error(
+          `Failed to fetch project: ${error instanceof Error ? error.message : 'Unknown error'}`
+        ),
       };
     }
-
-    const project = await getResponse.json();
 
     // Update the project with the new level
-    const updateResponse = await fetch(`${API_URL}/api/projects/${project.id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    try {
+      await apiClient.patch(`/api/projects/${project.id}`, {
         level: newLevel,
-      }),
-    });
+      });
 
-    if (!updateResponse.ok) {
-      console.error(`Error updating level for ${privyId}:`, updateResponse.statusText);
+      console.log(`Successfully updated level for ${privyId} to ${newLevel}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`Error updating level for ${privyId}:`, error);
       return {
         success: false,
-        error: new Error(`Failed to update level: ${updateResponse.statusText}`),
+        error: new Error(
+          `Failed to update level: ${error instanceof Error ? error.message : 'Unknown error'}`
+        ),
       };
     }
-
-    console.log(`Successfully updated level for ${privyId} to ${newLevel}`);
-    return { success: true };
   } catch (error) {
     console.error(`Unexpected error in updateUserLevel for ${privyId}:`, error);
     return { success: false, error };
