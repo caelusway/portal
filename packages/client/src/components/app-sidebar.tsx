@@ -119,7 +119,7 @@ export function AppSidebar() {
                       <NavLink to="/chat">
                         <SidebarMenuButton
                           isActive={location.pathname === '/chat'}
-                          className="transition-colors px-4 my-4 h-full py-1 rounded-md"
+                          className="transition-colors px-4 my-2 h-full py-1 rounded-md"
                         >
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 flex justify-center items-center">
@@ -145,7 +145,7 @@ export function AppSidebar() {
                       <NavLink to="/dashboard">
                         <SidebarMenuButton
                           isActive={location.pathname === '/dashboard'}
-                          className="transition-colors px-4 h-full py-1 rounded-md"
+                          className="transition-colors px-4 my-2 h-full py-1 rounded-md"
                         >
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 flex justify-center items-center">
@@ -166,7 +166,7 @@ export function AppSidebar() {
                       <NavLink to="/profile">
                         <SidebarMenuButton
                           isActive={location.pathname === '/profile'}
-                          className="transition-colors px-4 h-full py-1 rounded-md"
+                          className="transition-colors px-4 my-2 h-full py-1 rounded-md"
                         >
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 flex justify-center items-center">
@@ -187,7 +187,7 @@ export function AppSidebar() {
                       <NavLink to="/settings">
                         <SidebarMenuButton
                           isActive={location.pathname === '/settings'}
-                          className="transition-colors px-4 h-full py-1 rounded-md"
+                          className="transition-colors px-4 my-2 h-full py-1 rounded-md"
                         >
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 flex justify-center items-center">

@@ -40,7 +40,7 @@ export function UserLevelDisplay() {
       </div>
 
       <div className="flex items-center mb-4">
-        <div className="bg-primary/10 p-3 rounded-full mr-4">
+        <div className="p-3 mr-4">
           {userLevel === 1 && <Star className="h-8 w-8 text-primary" />}
           {userLevel === 2 && <Star className="h-8 w-8 text-amber-500" />}
           {userLevel === 3 && <Star className="h-8 w-8 text-violet-500" />}

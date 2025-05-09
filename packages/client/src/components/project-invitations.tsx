@@ -45,8 +45,9 @@ export function ProjectInvitations({ projectId }: ProjectInvitationsProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('member');
+  const [role, setRole] = useState('co-founder');
   const [isSending, setIsSending] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   // Fetch existing invitations
   const fetchInvites = async () => {
@@ -74,9 +75,42 @@ export function ProjectInvitations({ projectId }: ProjectInvitationsProps) {
     fetchInvites().finally(() => setIsLoading(false));
   }, [projectId]);
 
+  // Check if email already has a valid invitation
+  const hasActiveInvitation = (emailToCheck: string): boolean => {
+    const normalizedEmail = emailToCheck.trim().toLowerCase();
+    return invites.some(
+      (invite) =>
+        invite.inviteeEmail.toLowerCase() === normalizedEmail &&
+        invite.status === 'pending' &&
+        new Date(invite.expiresAt) > new Date()
+    );
+  };
+
+  // Validate email input
+  const validateEmail = (emailToValidate: string): boolean => {
+    setEmailError(null);
+
+    if (!emailToValidate) {
+      setEmailError('Email is required');
+      return false;
+    }
+
+    if (hasActiveInvitation(emailToValidate)) {
+      setEmailError('This email already has an active invitation');
+      return false;
+    }
+
+    return true;
+  };
+
   // Send invitation
   const handleSendInvite = async () => {
     if (!user?.id || !projectId || !email) return;
+
+    // Validate email before sending
+    if (!validateEmail(email)) {
+      return;
+    }
 
     try {
       setIsSending(true);
@@ -97,6 +131,15 @@ export function ProjectInvitations({ projectId }: ProjectInvitationsProps) {
       });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Handle email input change
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+    // Clear error when typing
+    if (emailError) {
+      setEmailError(null);
     }
   };
 
@@ -157,13 +200,15 @@ export function ProjectInvitations({ projectId }: ProjectInvitationsProps) {
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Send New Invitation</h3>
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
+            <div className="flex-1 flex flex-col">
               <Input
                 placeholder="Email address"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={handleEmailChange}
                 disabled={isSending}
+                className={emailError ? 'border-red-500' : ''}
               />
+              {emailError && <p className="text-red-500 text-sm mt-1">{emailError}</p>}
             </div>
             <div className="w-full md:w-32">
               <Select value={role} onValueChange={setRole} disabled={isSending}>
@@ -179,7 +224,7 @@ export function ProjectInvitations({ projectId }: ProjectInvitationsProps) {
             </div>
             <Button
               onClick={handleSendInvite}
-              disabled={!email || isSending}
+              disabled={!email || isSending || !!emailError}
               className="flex items-center gap-2"
             >
               {isSending ? (
@@ -262,9 +307,9 @@ export function ProjectInvitations({ projectId }: ProjectInvitationsProps) {
         </div>
       </CardContent>
       <CardFooter className="bg-muted/50 text-sm text-muted-foreground">
-        <div className="flex items-start gap-2">
-          <AlertCircle className="h-4 w-4 mt-0.5" />
-          <div>
+        <div className="flex items-center gap-3">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+          <div className="align-middle mt-4">
             Invitations are valid for 7 days. Users will need to create an account to join your
             project.
           </div>

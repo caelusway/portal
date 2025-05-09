@@ -14,6 +14,11 @@ import {
   ArrowDown,
   RefreshCw,
   Copy,
+  Diamond,
+  ImageIcon,
+  Lightbulb,
+  Eye,
+  Trophy,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Avatar, AvatarImage } from '../../components/ui/avatar';
@@ -902,22 +907,40 @@ export function CoreAgent() {
         return [
           "Here's my Discord server: discord.gg/myserver",
           'How can I grow my Discord community?',
-          'What are the requirements for Level up?',
+          'What are the requirements for level up?',
         ];
       case 3:
         return [
           'How many more members do I need?',
           'How can I increase paper sharing?',
-          'What are the requirements for Level up?',
+          'What are the requirements for level up?',
         ];
       case 4:
         return [
-          "I'd like to talk to the Bio team",
-          'What should I prepare for the team call?',
-          "What's next for my BioDAO?",
+          'How do I connect my Twitter account?',
+          'What should I tweet about?',
+          'What are the requirements for level up?',
+        ];
+      case 5:
+        return [
+          "What's next after completing onboarding?",
+          'What are the requirements for level up?',
+          'How do I develop my governance structure?',
+        ];
+      case 6:
+        return [
+          'How do scientists get verified in Discord?',
+          'How do I host a Twitter Space?',
+          'What are the requirements for level up?',
+        ];
+      case 7:
+        return [
+          'What should my visionary blogpost include?',
+          'How do I create an effective Twitter thread?',
+          'What are the requirements for level up?',
         ];
       default:
-        return ['How can I proceed?', "What's my current status?"];
+        return ["What's my current level?", 'What do I need to do next?'];
     }
   };
 
@@ -1088,18 +1111,26 @@ export function CoreAgent() {
 
     return (
       <div
-        className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+        className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
         onClick={onClose}
       >
         <div
-          className="bg-background rounded-lg shadow-lg max-w-2xl w-full max-h-[80vh] overflow-auto"
+          className="bg-background border border-border rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-6">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-xl font-semibold">
-                {nft.type.charAt(0).toUpperCase() + nft.type.slice(1)} NFT
-              </h3>
+              <div className="space-y-1">
+                <h3 className="text-xl font-semibold flex items-center gap-2">
+                  <span className="bg-primary/10 text-primary p-1 rounded-md">
+                    <Diamond className="h-5 w-5" />
+                  </span>
+                  {nft.type.charAt(0).toUpperCase() + nft.type.slice(1)} NFT
+                </h3>
+                <p className="text-muted-foreground text-sm">
+                  This NFT represents your project's {nft.type}
+                </p>
+              </div>
               <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
                 <X className="h-4 w-4" />
               </Button>
@@ -1108,69 +1139,103 @@ export function CoreAgent() {
             <div className="flex flex-col md:flex-row gap-6">
               <div className="w-full md:w-1/3">
                 {nft.imageUrl ? (
-                  <img
-                    src={
-                      nft.imageUrl.startsWith('/')
-                        ? `${import.meta.env.VITE_PUBLIC_API_URL}${nft.imageUrl}`
-                        : nft.imageUrl
-                    }
-                    alt={`${nft.type} NFT`}
-                    className="w-full aspect-square object-cover rounded-md"
-                  />
+                  <div className="overflow-hidden rounded-lg border shadow-sm">
+                    <img
+                      src={
+                        nft.imageUrl.startsWith('/')
+                          ? `${import.meta.env.VITE_PUBLIC_API_URL}${nft.imageUrl}`
+                          : nft.imageUrl
+                      }
+                      alt={`${nft.type} NFT`}
+                      className="w-full aspect-square object-cover"
+                    />
+                  </div>
                 ) : (
-                  <div className="w-full aspect-square bg-muted flex items-center justify-center rounded-md">
-                    No Image
+                  <div className="w-full aspect-square bg-muted/50 border border-border flex items-center justify-center rounded-lg">
+                    <ImageIcon className="h-12 w-12 text-muted-foreground/50" />
                   </div>
                 )}
 
-                <div className="mt-4 space-y-2">
-                  <p className="text-sm font-medium flex items-center justify-between">
-                    <span>Minted</span>
-                    <span>{new Date(nft.mintedAt).toLocaleString()}</span>
-                  </p>
-                  {nft.transactionHash && (
-                    <p className="text-sm font-medium flex items-center justify-between">
-                      <span>Transaction</span>
-                      <a
-                        href={`https://basescan.io/tx/${nft.transactionHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-500 hover:underline truncate max-w-[150px]"
-                      >
-                        {nft.transactionHash.substring(0, 6)}...
-                        {nft.transactionHash.substring(nft.transactionHash.length - 4)}
-                      </a>
-                    </p>
-                  )}
+                <div className="mt-6 space-y-3 p-4 bg-muted/30 rounded-lg border border-border">
+                  <h4 className="text-sm font-medium text-muted-foreground">NFT Details</h4>
+                  <div className="text-sm grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Minted</span>
+                      <span className="font-medium">{new Date(nft.mintedAt).toLocaleString()}</span>
+                    </div>
+                    {nft.transactionHash && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground shrink-0">Transaction</span>
+                        <a
+                          href={`https://basescan.io/tx/${nft.transactionHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline text-right font-medium break-all"
+                        >
+                          {nft.transactionHash.substring(0, 6)}...
+                          {nft.transactionHash.substring(nft.transactionHash.length - 4)}
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="w-full md:w-2/3 space-y-4">
-                {nft.type === 'idea' && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-1">
-                      Project Description
-                    </h4>
-                    <p className="text-sm">
-                      {projectData?.projectDescription ||
-                        projectData?.description ||
-                        'No description available'}
-                    </p>
-                  </div>
-                )}
+              <div className="w-full md:w-2/3 space-y-6">
+                <div className="p-4 bg-background rounded-lg border border-border shadow-sm">
+                  {nft.type === 'idea' && (
+                    <div>
+                      <h4 className="text-base font-semibold mb-2 flex items-center gap-2">
+                        <Lightbulb className="h-4 w-4 text-primary" />
+                        Project Idea
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        The core problem your project aims to solve
+                      </p>
+                      <div className="p-3 bg-muted/20 rounded border">
+                        <p className="text-sm whitespace-pre-wrap">
+                          {projectData?.projectDescription ||
+                            projectData?.description ||
+                            'No description available'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
-                {nft.type === 'vision' && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-1">
-                      Project Vision
-                    </h4>
-                    <p className="text-sm">
-                      {projectData?.projectVision ||
-                        projectData?.vision ||
-                        'No vision statement available'}
-                    </p>
+                  {nft.type === 'vision' && (
+                    <div>
+                      <h4 className="text-base font-semibold mb-2 flex items-center gap-2">
+                        <Eye className="h-4 w-4 text-primary" />
+                        Project Vision
+                      </h4>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        The future impact of your project when successful
+                      </p>
+                      <div className="p-3 bg-muted/20 rounded border">
+                        <p className="text-sm whitespace-pre-wrap">
+                          {projectData?.projectVision ||
+                            projectData?.vision ||
+                            'No vision statement available'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 bg-primary/10 p-2 rounded-full">
+                      <Trophy className="h-4 w-4 text-primary" />
+                    </span>
+                    <div>
+                      <h4 className="font-medium">Congratulations on minting your NFT</h4>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        This on-chain record represents your BioDAO project's {nft.type}. It's
+                        stored on the blockchain as proof of your work.
+                      </p>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
@@ -1470,18 +1535,6 @@ export function CoreAgent() {
                   {/* Wallet info */}
                   <div className="text-xs text-muted-foreground pt-4 border-t">
                     <p>Wallet: {formatWalletAddress(embeddedWallet?.address)}</p>
-                    <p className="mt-1">Last updated: {new Date().toLocaleTimeString()}</p>
-                    <div className="flex items-center mt-2">
-                      <label className="flex items-center gap-1 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={autoRefreshEnabled}
-                          onChange={(e) => setAutoRefreshEnabled(e.target.checked)}
-                          className="h-3 w-3"
-                        />
-                        <span>Auto-refresh</span>
-                      </label>
-                    </div>
                   </div>
                 </div>
               </div>

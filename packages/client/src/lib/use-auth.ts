@@ -2,7 +2,7 @@ import { usePrivy } from '@privy-io/react-auth';
 // Removed unused useState and useEffect imports if they were there
 
 export function useAuth() {
-  const { authenticated, user, login, logout, createWallet } = usePrivy();
+  const { authenticated, user, login, logout, createWallet, ready } = usePrivy();
   // Remove supabaseUserId state and related logic
   // const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
 
@@ -11,6 +11,7 @@ export function useAuth() {
   // Return only the necessary values from Privy and the wallet
   return {
     isAuthenticated: authenticated,
+    isLoading: !ready, // Use the 'ready' flag from Privy to determine loading state
     user,
     login,
     logout,

@@ -1,19 +1,34 @@
 import { NFT, Discord } from '../../types/database.types';
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+
+// Helper function for authenticated API requests
+async function fetchWithAuth(url: string, options: RequestInit = {}) {
+  const headers = {
+    ...(options.headers || {}),
+    'x-api-key': API_KEY,
+    'Content-Type': 'application/json',
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error: ${response.statusText}`);
+  }
+
+  return response.json();
+}
 
 /**
  * Fetch project data with all related information
  */
 export async function fetchProjectData(privyId: string) {
   try {
-    const response = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
-
-    if (!response.ok) {
-      throw new Error(`Error fetching project: ${response.statusText}`);
-    }
-
-    return await response.json();
+    return await fetchWithAuth(`${API_URL}/api/projects/privy/${privyId}`);
   } catch (error) {
     console.error('Failed to fetch project data:', error);
     return null;
@@ -22,9 +37,7 @@ export async function fetchProjectData(privyId: string) {
 
 export async function fetchSessionId(projectId: string) {
   try {
-    const response = await fetch(`${API_URL}/api/chat/sessions/project/${projectId}`);
-    if (!response.ok) return [];
-    return await response.json();
+    return await fetchWithAuth(`${API_URL}/api/chat/sessions/project/${projectId}`);
   } catch (error) {
     console.error('Error fetching chat sessions:', error);
     return [];
@@ -36,13 +49,7 @@ export async function fetchSessionId(projectId: string) {
  */
 export async function fetchNFTsData(projectId: string): Promise<NFT[]> {
   try {
-    const response = await fetch(`${API_URL}/api/projects/${projectId}/nfts`);
-
-    if (!response.ok) {
-      throw new Error(`Error fetching NFTs: ${response.statusText}`);
-    }
-
-    return await response.json();
+    return await fetchWithAuth(`${API_URL}/api/projects/${projectId}/nfts`);
   } catch (error) {
     console.error('Failed to fetch NFT data:', error);
     return [];
@@ -54,13 +61,7 @@ export async function fetchNFTsData(projectId: string): Promise<NFT[]> {
  */
 export async function fetchDiscordMetrics(projectId: string): Promise<Discord | null> {
   try {
-    const response = await fetch(`${API_URL}/api/projects/${projectId}/discord`);
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return await response.json();
+    return await fetchWithAuth(`${API_URL}/api/projects/${projectId}/discord`);
   } catch (error) {
     console.error('Failed to fetch Discord metrics:', error);
     return null;

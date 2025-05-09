@@ -95,6 +95,27 @@ export async function levelUpUser(privyId: string, level: number): Promise<UserP
  */
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+
+// Helper for authenticated API requests
+const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+  const headers = {
+    ...options.headers,
+    'x-api-key': API_KEY,
+    'Content-Type': 'application/json',
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error: ${response.statusText}`);
+  }
+
+  return response.json();
+};
 
 /**
  * Fetch current user level by project ID
@@ -109,17 +130,7 @@ export async function fetchCurrentLevel(projectId: string): Promise<number | nul
 
   try {
     console.log(`[fetchCurrentLevel] Fetching current level for project ${projectId}`);
-    const response = await fetch(`${API_URL}/api/projects/${projectId}`);
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.warn(`[fetchCurrentLevel] No project found with ID: ${projectId}`);
-        return null;
-      }
-      throw new Error(`Error fetching user level: ${response.statusText}`);
-    }
-
-    const project = await response.json();
+    const project = await fetchWithAuth(`${API_URL}/api/projects/${projectId}`);
     console.log(`[fetchCurrentLevel] Project data retrieved:`, project);
 
     if (project && typeof project.level === 'number') {
@@ -147,17 +158,7 @@ export async function getUserLevel(privyId: string): Promise<UserProgress | null
 
   try {
     console.log(`[getUserLevel] Fetching level for user ${privyId}`);
-    const response = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.warn(`[getUserLevel] No project found for privyId: ${privyId}`);
-        return null;
-      }
-      throw new Error(`Error fetching user level: ${response.statusText}`);
-    }
-
-    const project = await response.json();
+    const project = await fetchWithAuth(`${API_URL}/api/projects/privy/${privyId}`);
 
     // Only return properties defined in UserProgress
     return {

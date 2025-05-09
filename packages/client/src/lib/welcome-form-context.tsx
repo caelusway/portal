@@ -8,8 +8,10 @@ import { Profile } from '../types/database.types';
 const formSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
   email: z.string().email('Please enter a valid email'),
+  referralSource: z.string().optional(),
   projectName: z.string().min(2, 'Project name must be at least 2 characters'),
   projectDescription: z.string().min(10, 'Please provide a more detailed project description'),
+  projectLinks: z.string().optional(),
   projectVision: z.string().min(10, 'Please provide a more detailed project vision'),
   scientificReferences: z.string().min(5, 'Please provide at least one scientific reference'),
   credentialLinks: z.string().min(5, 'Please provide at least one credential link'),
@@ -36,7 +38,9 @@ const WelcomeFormContext = createContext<WelcomeFormContextType | undefined>(und
 
 export function WelcomeFormProvider({ children }: { children: React.ReactNode }) {
   const { user: privyUser } = useAuth();
-  const { getProjectByWallet, getProjectById, upsertProject } = useDatabase(); // Get database methods
+  const { getProjectByPrivyId, getUserByPrivyId, createUser, createProject, updateProject } =
+    useDatabase();
+
   const [isFormSubmitted, setIsFormSubmitted] = useState<boolean>(false);
   const [formData, setFormData] = useState<WelcomeFormValues | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -51,25 +55,31 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
         setIsLoading(true);
 
         try {
-          // Try to get project by privyId first
-          let project = await getProjectById(privyUser.id);
+          // Try to get user by privyId
+          const bioUser = await getUserByPrivyId(privyUser.id);
 
-          // If not found by privyId, try to get by wallet address
-          if (!project && privyUser.wallet) {
-            const walletAddress =
-              typeof privyUser.wallet === 'string' ? privyUser.wallet : privyUser.wallet.toString();
-
-            project = await getProjectByWallet(walletAddress);
+          if (!bioUser) {
+            console.log('WelcomeFormProvider: No existing user found.');
+            setFormData(null);
+            setIsFormSubmitted(false);
+            setIsLoading(false);
+            setProfileChecked(true);
+            return;
           }
 
-          if (project && project.projectName) {
+          // Get project by privyId
+          const project = await getProjectByPrivyId(privyUser.id);
+
+          if (project) {
             // Map project fields to form values
             const formValues: WelcomeFormValues = {
-              fullName: project.fullName || '',
-              email: project.email || '',
-              projectName: project.projectName || '',
-              projectDescription: project.projectDescription || '',
-              projectVision: project.projectVision || '',
+              fullName: bioUser.fullName || '',
+              email: bioUser.email || '',
+              referralSource: '',
+              projectName: project.name || '',
+              projectDescription: project.description || '',
+              projectLinks: project.projectLinks || '',
+              projectVision: project.vision || '',
               scientificReferences: project.scientificReferences || '',
               credentialLinks: project.credentialLinks || '',
               teamMembers: project.teamMembers || '',
@@ -79,7 +89,7 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
             setFormData(formValues);
             setIsFormSubmitted(true);
           } else {
-            console.log('WelcomeFormProvider: No existing profile found.');
+            console.log('WelcomeFormProvider: No existing project found.');
             setFormData(null);
             setIsFormSubmitted(false);
           }
@@ -101,7 +111,7 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
       setFormData(null);
       setProfileChecked(false); // Reset so we'll check again when user logs in
     }
-  }, [privyUser?.id, profileChecked, getProjectById, getProjectByWallet]);
+  }, [privyUser, profileChecked, getProjectByPrivyId, getUserByPrivyId]);
 
   const submitForm = async (data: WelcomeFormValues) => {
     if (!privyUser?.id) {
@@ -112,18 +122,32 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
     // Show loading during submission
     setIsLoading(true);
     try {
-      // Prepare project data with Privy ID and wallet
+      // First, ensure user exists or create them
+      let bioUser = await getUserByPrivyId(privyUser.id);
+
+      if (!bioUser) {
+        // Create the user first
+        const userData = {
+          privyId: privyUser.id,
+          wallet: privyUser.wallet?.address || null,
+          email: data.email || privyUser.email?.address || null,
+          fullName: data.fullName,
+        };
+
+        bioUser = await createUser(userData);
+        console.log('WelcomeFormProvider: Created new user:', bioUser);
+      }
+
+      // Prepare project data
       const projectData = {
         privyId: privyUser.id,
-        wallet: privyUser.wallet
-          ? typeof privyUser.wallet === 'string'
-            ? privyUser.wallet
-            : privyUser.wallet.toString()
-          : undefined,
+        wallet: privyUser.wallet?.address || null,
         fullName: data.fullName,
         email: data.email || privyUser.email?.address || '',
+        referralSource: data.referralSource,
         projectName: data.projectName,
         projectDescription: data.projectDescription,
+        projectLinks: data.projectLinks,
         projectVision: data.projectVision,
         scientificReferences: data.scientificReferences,
         credentialLinks: data.credentialLinks,
@@ -132,12 +156,19 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
         progress: data.progress,
       };
 
-      console.log('WelcomeFormProvider: Submitting profile with database context');
+      // Check if project already exists
+      const existingProject = await getProjectByPrivyId(privyUser.id);
 
-      // Use the upsertProject function from database context
-      const savedProject = await upsertProject(projectData);
+      // Either create new project or update existing one
+      let savedProject;
+      if (existingProject) {
+        savedProject = await updateProject(existingProject.id, projectData, bioUser.id);
+        console.log('WelcomeFormProvider: Updated existing project:', savedProject);
+      } else {
+        savedProject = await createProject(projectData, bioUser.id);
+        console.log('WelcomeFormProvider: Created new project:', savedProject);
+      }
 
-      console.log('WelcomeFormProvider: Project saved:', savedProject);
       setFormData(data); // Update local state with submitted data
       setIsFormSubmitted(true);
     } catch (error) {

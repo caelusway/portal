@@ -3,7 +3,16 @@
 import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { UserLevelDisplay } from './user-level-display';
-import { BadgeCheck, ArrowRight, Rocket, Star, Crown, ArrowLeft } from 'lucide-react';
+import {
+  BadgeCheck,
+  ArrowRight,
+  Rocket,
+  Star,
+  Crown,
+  ArrowLeft,
+  Users,
+  FileText,
+} from 'lucide-react';
 import { Button } from './ui/button';
 import { LevelRequirementsPanel } from './level-requirements-panel';
 import { agentLevels } from '../config/agent-levels';
@@ -145,37 +154,42 @@ function DiscordMetricsDisplay({
       </div>
 
       {allCompleted && (
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-4">
           <div className="flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-green-500" />
-            <h3 className="font-medium text-green-700">All requirements completed!</h3>
+            <h3 className="font-medium text-green-700 dark:text-green-400">
+              All requirements completed!
+            </h3>
           </div>
-          <p className="text-green-600 text-sm mt-1">
+          <p className="text-green-600 dark:text-green-400 text-sm mt-1">
             You've met all the Discord metrics requirements. Ready for next level!
           </p>
         </div>
       )}
 
-      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-        <h3 className="font-medium text-blue-700 flex items-center gap-2">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 16v-4" />
-            <path d="M12 8h.01" />
-          </svg>
+      <div className="border border-border bg-card shadow-sm rounded-lg p-4">
+        <h3 className="font-medium flex items-center gap-2">
+          <div className="bg-primary/10 p-1.5 rounded-full">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-primary"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4" />
+              <path d="M12 8h.01" />
+            </svg>
+          </div>
           How It Works
         </h3>
-        <p className="text-blue-600 text-sm mt-1">
+        <p className="text-muted-foreground text-sm mt-2">
           Our Discord bot automatically tracks your server growth, scientific paper sharing, and
           message activity. You'll be notified in chat when you've met all requirements for level 4!
         </p>
@@ -193,8 +207,13 @@ function Level4CompletionScreen({
 }) {
   return (
     <div className="space-y-6">
-      <div className="bg-card border rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-4">Congratulations!</h2>
+      <div className="border border-border bg-card shadow-sm rounded-lg p-6">
+        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+          <span className="bg-primary/10 text-primary p-1.5 rounded-full">
+            <Crown className="h-5 w-5" />
+          </span>
+          Congratulations!
+        </h2>
         <div className="space-y-4">
           <p className="text-lg">Your DAO is now Level 4!</p>
 
@@ -209,49 +228,28 @@ function Level4CompletionScreen({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-card border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3">Community Status</h3>
+        <div className="border border-border bg-card shadow-sm rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <span className="bg-primary/10 text-primary p-1.5 rounded-full">
+              <Users className="h-4 w-4" />
+            </span>
+            Community Status
+          </h3>
           <div className="flex items-center gap-2 text-lg">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-primary"
-            >
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
             <span>
               DAO Member Size: <strong>{memberCount || 10}</strong>
             </span>
           </div>
         </div>
 
-        <div className="bg-card border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3">Science Bank</h3>
+        <div className="border border-border bg-card shadow-sm rounded-lg p-6">
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <span className="bg-primary/10 text-primary p-1.5 rounded-full">
+              <FileText className="h-4 w-4" />
+            </span>
+            Science Bank
+          </h3>
           <div className="flex items-center gap-2 text-lg">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-primary"
-            >
-              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
-            </svg>
             <span>
               NFTs Minted: <strong>{nftCount || 3}</strong>
             </span>
@@ -332,8 +330,7 @@ function Level1And2MetricsDisplay({
           )}
           {level === 1 && ideaNFT && visionNFT && (
             <p className="text-sm text-green-600 mt-3 flex items-center gap-1">
-              <BadgeCheck className="h-4 w-4" /> All required NFTs minted! Interact with them to
-              progress.
+              All required NFTs minted! Interact with them to progress.
             </p>
           )}
         </CardContent>
@@ -479,26 +476,28 @@ function LevelRequirementsList({ level, currentLevel }: { level: number; current
   );
 }
 
-// Add a Discord Tutorial Video component for Level 2
+// Discord Tutorial Video component for Level 2
 function DiscordTutorialVideo() {
   return (
-    <div className="bg-muted/50 rounded-lg p-4 mb-6">
+    <div className="border border-border bg-card shadow-sm rounded-lg p-4 mb-6">
       <h3 className="font-medium flex items-center gap-2 mb-2">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="text-primary"
-        >
-          <path d="m22 8-6 4 6 4V8Z" />
-          <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
-        </svg>
+        <div className="bg-primary/10 p-1.5 rounded-full">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-primary"
+          >
+            <path d="m22 8-6 4 6 4V8Z" />
+            <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
+          </svg>
+        </div>
         Discord Server Setup Tutorial
       </h3>
       <p className="text-sm text-muted-foreground mb-3">
@@ -508,7 +507,7 @@ function DiscordTutorialVideo() {
         href="https://www.youtube.com/watch?v=EDd8TMC3XfM&t=3s"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2 bg-card p-3 border rounded-md hover:bg-accent/10 transition-colors"
+        className="flex items-center gap-2 bg-muted/30 p-3 border rounded-md hover:bg-accent/10 transition-colors"
       >
         <div className="bg-primary/10 p-2 rounded-full">
           <svg
@@ -559,10 +558,14 @@ export function DashboardLayout() {
     messages: discordStats?.messagesCount || 0,
   };
 
+  // Get current level requirements
+  const currentLevelData = agentLevels[userLevel];
+  const nextLevelRequirements = currentLevelData?.levelupRequirements || [];
+
   // Render skeleton loaders for level requirements
   const renderSkeletonLevelRequirements = () => (
-    <Card className="mb-6">
-      <CardHeader>
+    <Card className="mb-4">
+      <CardHeader className="pb-2">
         <div className="h-6 bg-muted rounded w-1/3 animate-pulse"></div>
       </CardHeader>
       <CardContent>
@@ -584,11 +587,11 @@ export function DashboardLayout() {
 
   // Skeleton metrics display
   const renderSkeletonMetrics = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="h-6 bg-muted rounded w-1/4 animate-pulse"></div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-2">
             <div className="h-5 bg-muted rounded w-1/3 animate-pulse"></div>
           </CardHeader>
           <CardContent>
@@ -599,7 +602,7 @@ export function DashboardLayout() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-2">
             <div className="h-5 bg-muted rounded w-1/3 animate-pulse"></div>
           </CardHeader>
           <CardContent>
@@ -617,132 +620,182 @@ export function DashboardLayout() {
     </div>
   );
 
-  // Level Navigation Dropdown
-  const renderLevelNavigator = () => {
-    const options = [];
-    for (let i = 1; i <= userLevel; i++) {
-      options.push(
-        <SelectItem key={i} value={i.toString()}>
-          Level {i} {i === userLevel ? '(Current)' : i < userLevel ? '(Completed)' : ''}
-        </SelectItem>
-      );
-    }
-
-    // Only show navigator if user is past level 1
-    if (userLevel > 1) {
-      return (
-        <div className="mb-6 flex items-center gap-2 border-b pb-4">
-          <label
-            htmlFor="level-select"
-            className="text-sm font-medium text-muted-foreground shrink-0"
-          >
-            Navigate Levels:
-          </label>
-          <Select
-            value={viewedLevel.toString()}
-            onValueChange={(value) => setViewedLevel(parseInt(value))}
-          >
-            <SelectTrigger id="level-select" className="w-[200px] h-9">
-              <SelectValue placeholder="Select level..." />
-            </SelectTrigger>
-            <SelectContent>{options}</SelectContent>
-          </Select>
-        </div>
-      );
-    }
-    return null; // Don't show navigator at level 1
-  };
-
   return (
-    <div className="container py-6">
-      <div className="flex flex-col lg:flex-row gap-6 mb-8">
-        <div className="lg:w-1/3">
+    <div className="container py-4 space-y-4">
+      {/* Compact Overview Row with Basic Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+        {/* Current Level Display - 4 columns */}
+        <div className="md:col-span-4 bg-card rounded-lg border shadow-sm p-4">
           <UserLevelDisplay />
-          <LevelRequirementsPanel />
         </div>
 
-        <div className="lg:w-2/3">
-          {/* Use Level Navigator Dropdown */}
-          {renderLevelNavigator()}
-
-          {/* Display Content Directly */}
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold mb-4">Details for Level {viewedLevel}</h2>
-
-            {/* Display Requirements for the viewed level */}
-            {isLoading ? (
-              renderSkeletonLevelRequirements()
-            ) : (
-              <LevelRequirementsList level={viewedLevel} currentLevel={userLevel} />
-            )}
-
-            {/* Display Status/Metrics for the viewed level */}
-            <div className="mt-6">
-              <h3 className="text-lg font-medium mb-4">Status & Metrics</h3>
-              {isLoading
-                ? renderSkeletonMetrics()
-                : (() => {
-                    switch (viewedLevel) {
-                      case 1:
-                      case 2:
-                        return (
-                          <Level1And2MetricsDisplay
-                            level={viewedLevel}
-                            nfts={nfts}
-                            discordStats={discordStats}
-                            project={project}
-                          />
-                        );
-                      case 3:
-                        return <DiscordMetricsDisplay metrics={metricsData} />;
-                      case 4:
-                        return (
-                          <Level4CompletionScreen
-                            memberCount={metricsData.members}
-                            nftCount={nfts?.length || 0}
-                          />
-                        );
-                      default:
-                        return <div>Select a level to view details.</div>;
-                    }
-                  })()}
-              {/* Show tutorial video only when viewing level 2      {viewedLevel === 2 && <DiscordTutorialVideo />} */}
+        {/* Level Requirements Brief - 8 columns */}
+        <div className="md:col-span-8 bg-card rounded-lg border shadow-sm p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="bg-primary/10 p-1.5 rounded-full">
+                <Star className="h-5 w-5 text-primary" />
+              </div>
+              <h3 className="text-base font-medium mt-6">Level {userLevel} Requirements</h3>
             </div>
 
-            {/* Add a button to go back to current level view */}
+            {userLevel > 1 ? (
+              <div className="flex items-center gap-2">
+                <label htmlFor="level-select" className="text-sm text-muted-foreground shrink-0">
+                  View Level:
+                </label>
+                <Select
+                  value={viewedLevel.toString()}
+                  onValueChange={(value) => setViewedLevel(parseInt(value))}
+                >
+                  <SelectTrigger id="level-select" className="w-[140px] h-8">
+                    <SelectValue placeholder="Select level..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: userLevel }, (_, i) => i + 1).map((i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        Level {i} {i === userLevel ? '(Current)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <Badge>Level 1</Badge>
+            )}
+          </div>
+
+          {/* Show compact version of current level requirements */}
+          {nextLevelRequirements.length > 0 ? (
+            <ul className="space-y-1 mt-2">
+              {nextLevelRequirements.slice(0, 3).map((req, idx) => (
+                <li key={idx} className="flex items-start gap-2 text-sm">
+                  <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs">{idx + 1}</span>
+                  </div>
+                  <span className="text-muted-foreground">{req}</span>
+                </li>
+              ))}
+              {nextLevelRequirements.length > 3 && (
+                <li className="text-xs text-muted-foreground pl-7">
+                  +{nextLevelRequirements.length - 3} more requirements
+                </li>
+              )}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-2">
+              Maximum level achieved. Continue growing your DAO!
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Two Column Layout - Requirements and Metrics side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Left Column - Level Requirements */}
+        <div className="bg-card rounded-lg border shadow-sm p-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="py-1">
+                Level {viewedLevel}
+              </Badge>
+              <h2 className="text-lg font-medium">Requirements & Goals</h2>
+            </div>
+
             {viewedLevel !== userLevel && (
-              <Button variant="outline" onClick={() => setViewedLevel(userLevel)} className="mt-6">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Go to Current Level ({userLevel})
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setViewedLevel(userLevel)}
+                className="text-xs h-8"
+              >
+                <ArrowLeft className="mr-1 h-3 w-3" />
+                Current Level
               </Button>
             )}
           </div>
 
-          {/* Keep the "How to Progress" info box */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-6">
-            <h3 className="font-medium text-amber-800 flex items-center gap-2">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4" />
-                <path d="M12 8h.01" />
-              </svg>
+          {isLoading ? (
+            renderSkeletonLevelRequirements()
+          ) : (
+            <LevelRequirementsList level={viewedLevel} currentLevel={userLevel} />
+          )}
+
+          {/* How to Progress */}
+          <div className="border border-border bg-muted/30 rounded-lg p-3 mt-4">
+            <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+              <div className="bg-primary/10 p-1 rounded-full">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-primary"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4" />
+                  <path d="M12 8h.01" />
+                </svg>
+              </div>
               How to Progress
             </h3>
-            <p className="text-amber-700 text-sm mt-1">
-              Use the chat with our AI agent to complete tasks and progress to the next level. The
-              dashboard shows your current progress but all actions must be taken through the agent
-              chat. You can view previous level details using the navigation dropdown above.
-            </p>
+            <div className="border-l-2 border-primary/30 pl-3 mt-1">
+              <p className="text-muted-foreground text-xs">
+                Use the chat with our AI agent to complete tasks and progress to the next level. All
+                actions must be taken through the agent chat.
+              </p>
+            </div>
           </div>
+        </div>
+
+        {/* Right Column - Status & Metrics */}
+        <div className="bg-card rounded-lg border shadow-sm p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Badge variant="outline" className="py-1">
+              Level {viewedLevel}
+            </Badge>
+            <h2 className="text-lg font-medium">Progress Metrics</h2>
+          </div>
+
+          {isLoading ? (
+            renderSkeletonMetrics()
+          ) : (
+            <>
+              {(() => {
+                switch (viewedLevel) {
+                  case 1:
+                  case 2:
+                    return (
+                      <Level1And2MetricsDisplay
+                        level={viewedLevel}
+                        nfts={nfts}
+                        discordStats={discordStats}
+                        project={project}
+                      />
+                    );
+                  case 3:
+                    return <DiscordMetricsDisplay metrics={metricsData} />;
+                  case 4:
+                    return (
+                      <Level4CompletionScreen
+                        memberCount={metricsData.members}
+                        nftCount={nfts?.length || 0}
+                      />
+                    );
+                  default:
+                    return <div>Select a level to view details.</div>;
+                }
+              })()}
+
+              {/* Show tutorial video only when viewing level 2 */}
+              {viewedLevel === 2 && <DiscordTutorialVideo />}
+            </>
+          )}
         </div>
       </div>
     </div>

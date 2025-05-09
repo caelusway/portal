@@ -1,50 +1,92 @@
 import ProfileOverlay from '@/components/profile-overlay';
 import { useAgents } from '@/hooks/use-query-hooks';
-import type { Agent } from '@elizaos/core';
 import { useEffect, useState } from 'react';
-import { getOnboardingProfile } from '../lib/onboarding';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import { WelcomeForm } from '@/components/onboarding-form';
 import { useWelcomeForm } from '@/lib/welcome-form-context';
 import { LevelSpecificChat } from '@/components/agent/level-specific-chat';
-import { Profile } from '../types/database.types';
-import { useAuth } from '../lib/use-auth';
-import { useNavigate } from 'react-router-dom';
-export default function Home() {
-  const { data: { data: agentsData } = {}, isLoading, isError, error } = useAgents();
-  const { isFormSubmitted } = useWelcomeForm();
-  const { user } = useAuth();
+import { useAuth } from '@/lib/use-auth';
+import { useDatabase } from '@/contexts/db-context';
+import type { Agent } from '@elizaos/core';
+import Chat from './chat';
+import { CoreAgent } from '../components/agent/core-agent';
 
-  const [profile, setProfile] = useState<Profile | null>(null);
+export default function Home() {
+  const { data: { data: agentsData } = {}, isLoading } = useAgents();
+  const { isFormSubmitted, isLoading: isFormLoading } = useWelcomeForm();
+  const { user, isAuthenticated } = useAuth();
+  const { getProjectByPrivyId } = useDatabase();
+
   const navigate = useNavigate();
+  const location = useLocation();
+
   // Extract agents properly from the response
-  const agents = agentsData?.agents || [];
+  const agents = (agentsData?.agents || []) as Agent[];
 
   const [isOverlayOpen, setOverlayOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  //const { startAgent, isAgentStarting, isAgentStopping } = useAgentManagement();
+  const [isCheckingProfile, setIsCheckingProfile] = useState(false);
+  const [hasCompletedProfile, setHasCompletedProfile] = useState(false);
 
+  // Redirect to previous page after login
   useEffect(() => {
-    const getProfile = async () => {
-      if (!user?.id) return;
-
-      const profile = await getOnboardingProfile(user?.id);
-      if (
-        profile?.full_name &&
-        profile?.project_name &&
-        profile?.project_description &&
-        profile?.project_vision &&
-        profile?.scientific_references &&
-        profile?.credential_links &&
-        profile?.team_members &&
-        profile?.motivation
-      ) {
-        navigate('/dashboard');
+    if (isAuthenticated) {
+      // Check if we have a saved path to return to
+      const returnPath = localStorage.getItem('returnTo');
+      if (returnPath) {
+        localStorage.removeItem('returnTo'); // Clean up
+        navigate(returnPath);
+        return; // Important: exit early to prevent profile check redirect
       }
-      setProfile(profile);
+
+      // Also check for state passed from the Navigate component
+      const from = location.state?.from?.pathname;
+      if (from && from !== '/') {
+        navigate(from, { replace: true });
+        return; // Exit early
+      }
+    }
+  }, [isAuthenticated, navigate, location]);
+
+  // Check if user has a completed profile and redirect appropriately
+  useEffect(() => {
+    const checkUserProfile = async () => {
+      if (!user?.id || !isAuthenticated) return;
+
+      setIsCheckingProfile(true);
+      try {
+        // Use the database context to check if the user has a project
+        const project = await getProjectByPrivyId(user.id);
+
+        // If project exists with required fields, consider profile complete
+        const profileComplete = !!(
+          project?.projectDescription &&
+          project?.projectName &&
+          project?.projectVision &&
+          project?.projectLinks
+        );
+
+        setHasCompletedProfile(profileComplete);
+
+        // If profile is complete, redirect to dashboard
+        if (profileComplete) {
+          navigate('/dashboard');
+        }
+      } catch (error) {
+        console.error('Error checking user profile:', error);
+      } finally {
+        setIsCheckingProfile(false);
+      }
     };
-    getProfile();
-  }, [user?.id]);
+
+    // Only run profile check if we're not redirecting to another page
+    const returnPath = localStorage.getItem('returnTo');
+    const fromState = location.state?.from?.pathname;
+    if (!returnPath && !fromState) {
+      checkUserProfile();
+    }
+  }, [user?.id, isAuthenticated, navigate, getProjectByPrivyId, location]);
 
   const openOverlay = (agent: Agent) => {
     setSelectedAgent(agent);
@@ -56,14 +98,25 @@ export default function Home() {
     setOverlayOpen(false);
   };
 
+  // Show loading state while checking profile or form is loading
+  if ((isCheckingProfile || isFormLoading) && isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
   return (
     <>
-      {!isFormSubmitted && !profile && <WelcomeForm />}
+      {/* Show welcome form if user is authenticated but doesn't have a completed profile */}
+      {!hasCompletedProfile && !isFormSubmitted && <WelcomeForm />}
 
       <div className="flex-1 p-3">
-        {isFormSubmitted && (
+        {/* Show the level-specific chat after form submission */}
+        {(isFormSubmitted || hasCompletedProfile) && (
           <div className="flex flex-col gap-4 h-full">
-            <LevelSpecificChat />
+            <CoreAgent />
           </div>
         )}
       </div>
@@ -73,7 +126,7 @@ export default function Home() {
         onClose={closeOverlay}
         agent={
           agents.find((a) => a.id === selectedAgent?.id) ||
-          (selectedAgent as Agent) ||
+          selectedAgent ||
           agents[0] ||
           ({} as Agent)
         }

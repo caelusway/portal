@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../lib/use-auth';
-import { getOnboardingProfile, updateOnboardingProfile } from '../lib/api/onboarding';
-import { Profile } from '../types/database.types';
+import { useDatabase, BioUser, Project } from '../contexts/db-context';
 import { useUserLevel } from '../hooks/use-user-level';
 import { agentLevels } from '../config/agent-levels';
 import {
@@ -31,6 +30,7 @@ import {
   Book,
   Users,
   Mail,
+  Loader2,
 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
@@ -38,38 +38,53 @@ export default function ProfilePage() {
   const { user } = useAuth();
   const { level } = useUserLevel();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const { getUserByPrivyId, getProjectByPrivyId, updateUser, updateProject } = useDatabase();
+
+  const [bioUser, setBioUser] = useState<BioUser | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState<Partial<Profile>>({});
+  const [userFormData, setUserFormData] = useState<Partial<BioUser>>({});
+  const [projectFormData, setProjectFormData] = useState<Partial<Project>>({});
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Fetch profile data
+  // Fetch user and project data
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchData = async () => {
       if (!user?.id) return;
 
       try {
         setIsLoading(true);
-        const profileData = await getOnboardingProfile(user.id);
-        setProfile(profileData);
-        // Only set form data if profile data exists
-        if (profileData) {
-          setFormData({
-            full_name: profileData.full_name || '',
-            email: profileData.email || '',
-            username: profileData.username || '',
-            project_name: profileData.project_name || '',
-            project_description: profileData.project_description || '',
-            project_vision: profileData.project_vision || '',
-            scientific_references: profileData.scientific_references || '',
-            credential_links: profileData.credential_links || '',
-            team_members: profileData.team_members || '',
-            motivation: profileData.motivation || '',
+        // Fetch user and project data in parallel
+        const [userData, projectData] = await Promise.all([
+          getUserByPrivyId(user.id),
+          getProjectByPrivyId(user.id),
+        ]);
+
+        setBioUser(userData);
+        setProject(projectData);
+
+        // Initialize form data
+        if (userData) {
+          setUserFormData({
+            fullName: userData.fullName || '',
+            email: userData.email || '',
+          });
+        }
+
+        if (projectData) {
+          setProjectFormData({
+            name: projectData.projectName || '',
+            description: projectData.projectDescription || '',
+            vision: projectData.projectVision || '',
+            scientificReferences: projectData.scientificReferences || '',
+            teamMembers: projectData.teamMembers || '',
+            credentialLinks: projectData.credentialLinks || '',
+            motivation: projectData.motivation || '',
           });
         }
       } catch (error) {
-        console.error('Error fetching profile:', error);
+        console.error('Error fetching profile data:', error);
         toast({
           title: 'Error',
           description: 'Failed to load profile information',
@@ -80,28 +95,35 @@ export default function ProfilePage() {
       }
     };
 
-    fetchProfile();
-  }, [user?.id, toast]);
+    fetchData();
+  }, [user?.id, getUserByPrivyId, getProjectByPrivyId, toast]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleUserInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setUserFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleProjectInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setProjectFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSaveProfile = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !bioUser?.id || !project?.id) return;
 
     try {
       setIsLoading(true);
 
-      // Prepare the data for update
-      const updateData: Partial<Profile> = {
-        ...formData,
-      };
+      // Update user data
+      const updatedUser = await updateUser(bioUser.id, userFormData);
+      setBioUser(updatedUser);
 
-      const updatedProfile = await updateOnboardingProfile(user.id, updateData);
+      // Update project data
+      const updatedProject = await updateProject(project.id, projectFormData, bioUser.id);
+      setProject(updatedProject);
 
-      setProfile(updatedProfile);
       setIsEditing(false);
 
       toast({
@@ -126,17 +148,12 @@ export default function ProfilePage() {
     return <Star className="h-6 w-6 text-primary" />;
   };
 
-  if (isLoading && !profile) {
+  if (isLoading && (!bioUser || !project)) {
     return (
       <div className="container py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="h-8 w-1/3 bg-muted rounded animate-pulse mb-4"></div>
-          <div className="h-6 w-1/2 bg-muted rounded animate-pulse mb-8"></div>
-
-          <div className="space-y-8">
-            <div className="h-32 bg-muted rounded animate-pulse"></div>
-            <div className="h-64 bg-muted rounded animate-pulse"></div>
-          </div>
+        <div className="max-w-4xl mx-auto flex flex-col items-center justify-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading profile data...</p>
         </div>
       </div>
     );
@@ -182,18 +199,18 @@ export default function ProfilePage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label htmlFor="full_name">Full Name</Label>
+                    <Label htmlFor="fullName">Full Name</Label>
                     {isEditing ? (
                       <Input
-                        id="full_name"
-                        name="full_name"
-                        value={formData.full_name || ''}
-                        onChange={handleInputChange}
+                        id="fullName"
+                        name="fullName"
+                        value={userFormData.fullName || ''}
+                        onChange={handleUserInputChange}
                         className="mt-1"
                       />
                     ) : (
                       <div className="mt-1 p-2 bg-muted/50 rounded">
-                        {profile?.full_name || 'Not provided'}
+                        {bioUser?.fullName || 'Not provided'}
                       </div>
                     )}
                   </div>
@@ -204,33 +221,23 @@ export default function ProfilePage() {
                       <Input
                         id="email"
                         name="email"
-                        value={formData.email || ''}
-                        onChange={handleInputChange}
+                        value={userFormData.email || ''}
+                        onChange={handleUserInputChange}
                         className="mt-1"
                       />
                     ) : (
                       <div className="mt-1 p-2 bg-muted/50 rounded flex items-center gap-2">
                         <Mail className="h-4 w-4 text-muted-foreground" />
-                        {profile?.email || 'Not provided'}
+                        {bioUser?.email || user?.email?.address || 'Not provided'}
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <Label htmlFor="username">Username</Label>
-                    {isEditing ? (
-                      <Input
-                        id="username"
-                        name="username"
-                        value={formData.username || ''}
-                        onChange={handleInputChange}
-                        className="mt-1"
-                      />
-                    ) : (
-                      <div className="mt-1 p-2 bg-muted/50 rounded">
-                        {profile?.username || 'Not provided'}
-                      </div>
-                    )}
+                    <Label>Wallet Address</Label>
+                    <div className="mt-1 p-2 bg-muted/50 rounded font-mono text-xs">
+                      {bioUser?.wallet || 'Not connected'}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -282,7 +289,7 @@ export default function ProfilePage() {
                 </CardContent>
                 <CardFooter className="bg-muted/20 text-xs text-muted-foreground">
                   Last updated:{' '}
-                  {profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : 'N/A'}
+                  {project?.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : 'N/A'}
                 </CardFooter>
               </Card>
             </div>
@@ -299,52 +306,52 @@ export default function ProfilePage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div>
-                  <Label htmlFor="project_name">Project Name</Label>
+                  <Label htmlFor="name">Project Name</Label>
                   {isEditing ? (
                     <Input
-                      id="project_name"
-                      name="project_name"
-                      value={formData.project_name || ''}
-                      onChange={handleInputChange}
+                      id="name"
+                      name="name"
+                      value={projectFormData.name || ''}
+                      onChange={handleProjectInputChange}
                       className="mt-1"
                     />
                   ) : (
                     <div className="mt-1 p-2 bg-muted/50 rounded font-medium">
-                      {profile?.project_name || 'Not provided'}
+                      {project?.projectName || 'Not provided'}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <Label htmlFor="project_description">Project Description</Label>
+                  <Label htmlFor="description">Project Description</Label>
                   {isEditing ? (
                     <Textarea
-                      id="project_description"
-                      name="project_description"
-                      value={formData.project_description || ''}
-                      onChange={handleInputChange}
+                      id="description"
+                      name="description"
+                      value={projectFormData.description || ''}
+                      onChange={handleProjectInputChange}
                       className="mt-1 min-h-[120px]"
                     />
                   ) : (
                     <div className="mt-1 p-3 bg-muted/50 rounded whitespace-pre-wrap">
-                      {profile?.project_description || 'No description provided'}
+                      {project?.projectDescription || 'No description provided'}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <Label htmlFor="project_vision">Project Vision</Label>
+                  <Label htmlFor="vision">Project Vision</Label>
                   {isEditing ? (
                     <Textarea
-                      id="project_vision"
-                      name="project_vision"
-                      value={formData.project_vision || ''}
-                      onChange={handleInputChange}
+                      id="vision"
+                      name="vision"
+                      value={projectFormData.vision || ''}
+                      onChange={handleProjectInputChange}
                       className="mt-1 min-h-[120px]"
                     />
                   ) : (
                     <div className="mt-1 p-3 bg-muted/50 rounded whitespace-pre-wrap">
-                      {profile?.project_vision || 'No vision statement provided'}
+                      {project?.projectVision || 'No vision statement provided'}
                     </div>
                   )}
                 </div>
@@ -362,16 +369,16 @@ export default function ProfilePage() {
                 <CardContent>
                   {isEditing ? (
                     <Textarea
-                      id="scientific_references"
-                      name="scientific_references"
-                      value={formData.scientific_references || ''}
-                      onChange={handleInputChange}
+                      id="scientificReferences"
+                      name="scientificReferences"
+                      value={projectFormData.scientificReferences || ''}
+                      onChange={handleProjectInputChange}
                       className="min-h-[150px]"
                       placeholder="Enter scientific references separated by new lines"
                     />
                   ) : (
                     <div className="p-3 bg-muted/50 rounded whitespace-pre-wrap">
-                      {profile?.scientific_references || 'No scientific references provided'}
+                      {project?.scientificReferences || 'No scientific references provided'}
                     </div>
                   )}
                 </CardContent>
@@ -387,16 +394,16 @@ export default function ProfilePage() {
                 <CardContent>
                   {isEditing ? (
                     <Textarea
-                      id="team_members"
-                      name="team_members"
-                      value={formData.team_members || ''}
-                      onChange={handleInputChange}
+                      id="teamMembers"
+                      name="teamMembers"
+                      value={projectFormData.teamMembers || ''}
+                      onChange={handleProjectInputChange}
                       className="min-h-[150px]"
                       placeholder="Enter team members separated by new lines"
                     />
                   ) : (
                     <div className="p-3 bg-muted/50 rounded whitespace-pre-wrap">
-                      {profile?.team_members || 'No team members provided'}
+                      {project?.teamMembers || 'No team members provided'}
                     </div>
                   )}
                 </CardContent>

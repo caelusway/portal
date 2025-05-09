@@ -1,22 +1,39 @@
 import { Profile } from '../../types/database.types';
 
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+
+// Helper function for authenticated API requests
+async function fetchWithAuth(url: string, options: RequestInit = {}) {
+  const headers = {
+    ...(options.headers || {}),
+    'x-api-key': API_KEY,
+    'Content-Type': 'application/json',
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    if (response.status === 404 && url.includes('/api/projects/privy/')) {
+      return null;
+    }
+    throw new Error(`Error: ${response.statusText}`);
+  }
+
+  return response.json();
+}
 
 /**
  * Get profile by privy_id
  */
 export const getOnboardingProfile = async (privyId: string): Promise<Profile | null> => {
   try {
-    const response = await fetch(`${API_URL}/api/projects/privy/${privyId}`);
+    const project = await fetchWithAuth(`${API_URL}/api/projects/privy/${privyId}`);
+    if (!project) return null;
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
-      throw new Error(`Error fetching profile: ${response.statusText}`);
-    }
-
-    const project = await response.json();
     return mapProjectToProfile(project);
   } catch (error) {
     console.error('Failed to fetch onboarding profile:', error);
@@ -39,11 +56,8 @@ export const createOnboardingProfile = async (
       throw new Error('Wallet address is required to create a profile');
     }
 
-    const response = await fetch(`${API_URL}/api/projects/privy/${profile.privy_id}`, {
+    const project = await fetchWithAuth(`${API_URL}/api/projects/privy/${profile.privy_id}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify({
         fullName: profile.full_name,
         email: profile.email,
@@ -59,11 +73,6 @@ export const createOnboardingProfile = async (
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Error creating profile: ${response.statusText}`);
-    }
-
-    const project = await response.json();
     return mapProjectToProfile(project);
   } catch (error) {
     console.error('Failed to create onboarding profile:', error);
@@ -88,9 +97,8 @@ export async function updateOnboardingProfile(
     }
 
     // Then update it with the new values
-    const response = await fetch(`${API_URL}/api/projects/${project.id}`, {
+    const data = await fetchWithAuth(`${API_URL}/api/projects/${project.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         fullName: updates.full_name,
         email: updates.email,
@@ -105,11 +113,6 @@ export async function updateOnboardingProfile(
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to update profile: ${response.statusText}`);
-    }
-
-    const data = await response.json();
     return mapProjectToProfile(data);
   } catch (error) {
     console.error('Error updating profile:', error);
@@ -133,13 +136,9 @@ export async function deleteOnboardingProfile(privyId: string): Promise<void> {
       return;
     }
 
-    const response = await fetch(`${API_URL}/api/projects/${project.id}`, {
+    await fetchWithAuth(`${API_URL}/api/projects/${project.id}`, {
       method: 'DELETE',
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete profile: ${response.statusText}`);
-    }
   } catch (error) {
     console.error('Error deleting profile:', error);
     throw new Error(

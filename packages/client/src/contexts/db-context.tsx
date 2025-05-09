@@ -30,6 +30,7 @@ export interface Project {
   scientificReferences?: string;
   credentialLinks?: string;
   teamMembers?: string;
+  teamDescription?: string;
   motivation?: string;
   progress?: string;
   createdAt: Date;
@@ -37,6 +38,7 @@ export interface Project {
   // Relations
   members?: ProjectMember[];
   Discord?: Discord;
+  Twitter?: Twitter;
   NFTs?: NFT[];
 }
 
@@ -79,6 +81,24 @@ export interface NFT {
   imageUrl: string | null;
   metadata: any;
   mintedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Twitter {
+  id: string;
+  projectId: string;
+  connected: boolean;
+  twitterUsername: string | null;
+  twitterId: string | null;
+  introTweetsCount: number;
+  tweetIds: string | null;
+  twitterSpaceUrl: string | null;
+  twitterSpaceDate: Date | null;
+  blogpostUrl: string | null;
+  blogpostDate: Date | null;
+  twitterThreadUrl: string | null;
+  twitterThreadDate: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -143,7 +163,7 @@ interface DatabaseContextType {
   // Project Invite methods
   createProjectInvite: (
     projectId: string,
-    inviterUserId: string,
+    privyId: string,
     inviteeEmail: string
   ) => Promise<ProjectInvite>;
   verifyInviteToken: (token: string) => Promise<ProjectInvite | null>;
@@ -159,6 +179,14 @@ interface DatabaseContextType {
   setupDiscord: (projectId: string, inviteLink: string, userId: string) => Promise<boolean>;
   checkDiscordStats: (projectId: string, userId: string) => Promise<Discord | null>;
 
+  // Twitter methods
+  getTwitterByProjectId: (projectId: string, userId: string) => Promise<Twitter | null>;
+  updateTwitterInfo: (
+    projectId: string,
+    twitterData: Partial<Twitter>,
+    userId: string
+  ) => Promise<Twitter>;
+
   // Chat methods
   getChatSessionsByProjectId: (projectId: string) => Promise<ChatSession[]>;
   getChatMessagesBySessionId: (sessionId: string) => Promise<ChatMessage[]>;
@@ -169,8 +197,22 @@ interface DatabaseContextType {
   ) => Promise<ChatMessage>;
   getOrCreateChatSession: (projectId: string) => Promise<ChatSession>;
 
+  getProjectByPrivyId: (privyId: string) => Promise<Project | null>;
+
   // Loading state
   loading: boolean;
+
+  // New method to update user's social connections
+  updateUserSocialConnections: (
+    userId: string,
+    connectionData: {
+      platform: 'discord' | 'twitter';
+      platformId: string;
+      username: string;
+      email?: string;
+      avatarUrl?: string;
+    }
+  ) => Promise<BioUser>;
 }
 
 // Create the context with default values
@@ -204,6 +246,7 @@ const DatabaseContext = createContext<DatabaseContextType>({
   }),
   getProjectById: async () => null,
   getProjectsByUserId: async () => [],
+  getProjectByPrivyId: async () => null,
   createProject: async () => ({
     id: '',
     name: null,
@@ -285,10 +328,85 @@ const DatabaseContext = createContext<DatabaseContextType>({
     updatedAt: new Date(),
   }),
   loading: true,
+  updateUserSocialConnections: async () => ({
+    id: '',
+    privyId: '',
+    wallet: null,
+    email: null,
+    fullName: null,
+    avatarUrl: null,
+    referralCode: null,
+    referredById: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }),
+  getTwitterByProjectId: async () => null,
+  updateTwitterInfo: async () => ({
+    id: '',
+    projectId: '',
+    connected: false,
+    twitterUsername: null,
+    twitterId: null,
+    introTweetsCount: 0,
+    tweetIds: null,
+    twitterSpaceUrl: null,
+    twitterSpaceDate: null,
+    blogpostUrl: null,
+    blogpostDate: null,
+    twitterThreadUrl: null,
+    twitterThreadDate: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }),
 });
 
 // API base URL from environment or default
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+const API_KEY = import.meta.env.VITE_API_KEY || '';
+
+// Helper for authenticated API requests
+const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+  const headers = {
+    ...options.headers,
+    'x-api-key': API_KEY,
+    'Content-Type': 'application/json',
+  };
+
+  // Don't stringify the body here as apiClient methods already do it
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `API request failed: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+// Create API client with standardized methods
+const apiClient = {
+  get: (endpoint: string) => fetchWithAuth(`${API_URL}${endpoint}`),
+
+  post: (endpoint: string, data: any) =>
+    fetchWithAuth(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  put: (endpoint: string, data: any) =>
+    fetchWithAuth(`${API_URL}${endpoint}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (endpoint: string) =>
+    fetchWithAuth(`${API_URL}${endpoint}`, {
+      method: 'DELETE',
+    }),
+};
 
 // Provider component
 export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -303,9 +421,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // User methods
   const getUserById = async (id: string): Promise<BioUser | null> => {
     try {
-      const response = await fetch(`${API_URL}/api/users/${id}`);
-      if (!response.ok) return null;
-      return await response.json();
+      return await apiClient.get(`/api/users/${id}`);
     } catch (error) {
       console.error('Error fetching user by ID:', error);
       return null;
@@ -314,9 +430,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getUserByPrivyId = async (privyId: string): Promise<BioUser | null> => {
     try {
-      const response = await fetch(`${API_URL}/api/users/privy/${privyId}`);
-      if (!response.ok) return null;
-      return await response.json();
+      return await apiClient.get(`/api/users/privy/${privyId}`);
     } catch (error) {
       console.error('Error fetching user by Privy ID:', error);
       return null;
@@ -325,9 +439,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getUserByWallet = async (wallet: string): Promise<BioUser | null> => {
     try {
-      const response = await fetch(`${API_URL}/api/users/wallet/${wallet}`);
-      if (!response.ok) return null;
-      return await response.json();
+      return await apiClient.get(`/api/users/wallet/${wallet}`);
     } catch (error) {
       console.error('Error fetching user by wallet:', error);
       return null;
@@ -336,12 +448,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const createUser = async (userData: Partial<BioUser>): Promise<BioUser> => {
     try {
-      const response = await fetch(`${API_URL}/api/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-      });
-      return await response.json();
+      return await apiClient.post(`/api/users`, userData);
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;
@@ -350,12 +457,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateUser = async (id: string, userData: Partial<BioUser>): Promise<BioUser> => {
     try {
-      const response = await fetch(`${API_URL}/api/users/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData),
-      });
-      return await response.json();
+      return await apiClient.put(`/api/users/${id}`, userData);
     } catch (error) {
       console.error('Error updating user:', error);
       throw error;
@@ -365,9 +467,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Project methods
   const getProjectById = async (id: string, userId: string): Promise<Project | null> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects/${id}?userId=${userId}`);
-      if (!response.ok) return null;
-      return await response.json();
+      return await apiClient.get(`/api/projects/${id}?userId=${userId}`);
     } catch (error) {
       console.error('Error fetching project by ID:', error);
       return null;
@@ -376,23 +476,25 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getProjectsByUserId = async (userId: string): Promise<Project[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects?userId=${userId}`);
-      if (!response.ok) return [];
-      return await response.json();
+      return await apiClient.get(`/api/projects?userId=${userId}`);
     } catch (error) {
       console.error('Error fetching projects by user ID:', error);
       return [];
     }
   };
 
+  const getProjectByPrivyId = async (privyId: string): Promise<Project | null> => {
+    try {
+      return await apiClient.get(`/api/projects/privy/${privyId}`);
+    } catch (error) {
+      console.error('Error fetching project by Privy ID:', error);
+      return null;
+    }
+  };
+
   const createProject = async (projectData: Partial<Project>, userId: string): Promise<Project> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...projectData, userId }),
-      });
-      return await response.json();
+      return await apiClient.post(`/api/projects`, { ...projectData, userId });
     } catch (error) {
       console.error('Error creating project:', error);
       throw error;
@@ -405,12 +507,24 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     userId: string
   ): Promise<Project> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...projectData, userId }),
-      });
-      return await response.json();
+      // Map client-side field names to database field names
+      const mappedData: Record<string, any> = {
+        projectName: projectData.name,
+        projectDescription: projectData.description,
+        projectVision: projectData.vision,
+        scientificReferences: projectData.scientificReferences,
+        teamMembers: projectData.teamMembers,
+        credentialLinks: projectData.credentialLinks,
+        motivation: projectData.motivation,
+        progress: projectData.progress,
+      };
+
+      // Remove undefined fields
+      Object.keys(mappedData).forEach(
+        (key) => mappedData[key] === undefined && delete mappedData[key]
+      );
+
+      return await apiClient.put(`/api/projects/${id}`, mappedData);
     } catch (error) {
       console.error('Error updating project:', error);
       throw error;
@@ -420,9 +534,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Project Member methods
   const getProjectMembers = async (projectId: string): Promise<ProjectMember[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects/${projectId}/members`);
-      if (!response.ok) return [];
-      return await response.json();
+      return await apiClient.get(`/api/projects/${projectId}/members`);
     } catch (error) {
       console.error('Error fetching project members:', error);
       return [];
@@ -435,12 +547,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     role: string
   ): Promise<ProjectMember> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects/${projectId}/members`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bioUserId, role }),
-      });
-      return await response.json();
+      return await apiClient.post(`/api/projects/${projectId}/members`, { bioUserId, role });
     } catch (error) {
       console.error('Error adding project member:', error);
       throw error;
@@ -449,12 +556,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateProjectMemberRole = async (id: string, role: string): Promise<ProjectMember> => {
     try {
-      const response = await fetch(`${API_URL}/api/members/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role }),
-      });
-      return await response.json();
+      return await apiClient.put(`/api/projects/members/${id}`, { role });
     } catch (error) {
       console.error('Error updating project member role:', error);
       throw error;
@@ -463,10 +565,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const removeProjectMember = async (id: string): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_URL}/api/members/${id}`, {
-        method: 'DELETE',
-      });
-      const result = await response.json();
+      const result = await apiClient.delete(`/api/projects/members/${id}`);
       return result.success || false;
     } catch (error) {
       console.error('Error removing project member:', error);
@@ -477,16 +576,13 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Project Invite methods
   const createProjectInvite = async (
     projectId: string,
-    inviterUserId: string,
+    privyId: string,
     inviteeEmail: string
   ): Promise<ProjectInvite> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects/${projectId}/invites`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: inviterUserId, inviteeEmail }),
+      return await apiClient.post(`/api/projects/${projectId}/invites/${privyId}`, {
+        inviteeEmail: inviteeEmail,
       });
-      return await response.json();
     } catch (error) {
       console.error('Error creating project invite:', error);
       throw error;
@@ -495,9 +591,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const verifyInviteToken = async (token: string): Promise<ProjectInvite | null> => {
     try {
-      const response = await fetch(`${API_URL}/api/invites/verify?token=${token}`);
-      if (!response.ok) return null;
-      return await response.json();
+      return await apiClient.get(`/api/invites/verify?token=${token}`);
     } catch (error) {
       console.error('Error verifying invite token:', error);
       return null;
@@ -506,12 +600,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const acceptInvite = async (token: string, userId: string): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_URL}/api/invites/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, userId }),
-      });
-      const result = await response.json();
+      const result = await apiClient.post(`/api/invites/accept`, { token, userId });
       return result.success || false;
     } catch (error) {
       console.error('Error accepting invite:', error);
@@ -521,9 +610,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getInvitesByProjectId = async (projectId: string): Promise<ProjectInvite[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects/${projectId}/invites`);
-      if (!response.ok) return [];
-      return await response.json();
+      return await apiClient.get(`/api/projects/${projectId}/invites`);
     } catch (error) {
       console.error('Error fetching project invites:', error);
       return [];
@@ -533,9 +620,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // NFT methods
   const getNFTsByProjectId = async (projectId: string, userId: string): Promise<NFT[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects/${projectId}/nfts?userId=${userId}`);
-      if (!response.ok) return [];
-      return await response.json();
+      return await apiClient.get(`/api/projects/${projectId}/nfts?userId=${userId}`);
     } catch (error) {
       console.error('Error fetching NFTs:', error);
       return [];
@@ -548,12 +633,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     userId: string
   ): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_URL}/api/nfts/mint`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, type: nftType, userId }),
-      });
-      const result = await response.json();
+      const result = await apiClient.post(`/api/nfts/mint`, { projectId, type: nftType, userId });
       return result.success || false;
     } catch (error) {
       console.error('Error requesting NFT mint:', error);
@@ -567,9 +647,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     userId: string
   ): Promise<Discord | null> => {
     try {
-      const response = await fetch(`${API_URL}/api/projects/${projectId}/discord?userId=${userId}`);
-      if (!response.ok) return null;
-      return await response.json();
+      return await apiClient.get(`/api/projects/${projectId}/discord?userId=${userId}`);
     } catch (error) {
       console.error('Error fetching Discord info:', error);
       return null;
@@ -582,12 +660,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     userId: string
   ): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_URL}/api/discord/setup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, inviteLink, userId }),
-      });
-      const result = await response.json();
+      const result = await apiClient.post(`/api/discord/setup`, { projectId, inviteLink, userId });
       return result.success || false;
     } catch (error) {
       console.error('Error setting up Discord:', error);
@@ -597,23 +670,43 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const checkDiscordStats = async (projectId: string, userId: string): Promise<Discord | null> => {
     try {
-      const response = await fetch(
-        `${API_URL}/api/projects/${projectId}/discord/stats?userId=${userId}`
-      );
-      if (!response.ok) return null;
-      return await response.json();
+      return await apiClient.get(`/api/projects/${projectId}/discord/stats?userId=${userId}`);
     } catch (error) {
       console.error('Error checking Discord stats:', error);
       return null;
     }
   };
 
+  // Twitter methods
+  const getTwitterByProjectId = async (
+    projectId: string,
+    userId: string
+  ): Promise<Twitter | null> => {
+    try {
+      return await apiClient.get(`/api/projects/${projectId}/twitter?userId=${userId}`);
+    } catch (error) {
+      console.error('Error fetching Twitter info:', error);
+      return null;
+    }
+  };
+
+  const updateTwitterInfo = async (
+    projectId: string,
+    twitterData: Partial<Twitter>,
+    userId: string
+  ): Promise<Twitter> => {
+    try {
+      return await apiClient.put(`/api/projects/${projectId}/twitter`, { ...twitterData, userId });
+    } catch (error) {
+      console.error('Error updating Twitter info:', error);
+      throw error;
+    }
+  };
+
   // Chat methods
   const getChatSessionsByProjectId = async (projectId: string): Promise<ChatSession[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/chat/sessions/project/${projectId}`);
-      if (!response.ok) return [];
-      return await response.json();
+      return await apiClient.get(`/api/chat/sessions/project/${projectId}`);
     } catch (error) {
       console.error('Error fetching chat sessions:', error);
       return [];
@@ -622,9 +715,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getChatMessagesBySessionId = async (sessionId: string): Promise<ChatMessage[]> => {
     try {
-      const response = await fetch(`${API_URL}/api/chat/messages/session/${sessionId}`);
-      if (!response.ok) return [];
-      return await response.json();
+      return await apiClient.get(`/api/chat/messages/session/${sessionId}`);
     } catch (error) {
       console.error('Error fetching chat messages:', error);
       return [];
@@ -637,12 +728,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     isFromAgent: boolean
   ): Promise<ChatMessage> => {
     try {
-      const response = await fetch(`${API_URL}/api/chat/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, content, isFromAgent }),
-      });
-      return await response.json();
+      return await apiClient.post(`/api/chat/messages`, { sessionId, content, isFromAgent });
     } catch (error) {
       console.error('Error creating chat message:', error);
       throw error;
@@ -651,14 +737,28 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const getOrCreateChatSession = async (projectId: string): Promise<ChatSession> => {
     try {
-      const response = await fetch(`${API_URL}/api/chat/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
-      });
-      return await response.json();
+      return await apiClient.post(`/api/chat/sessions`, { projectId });
     } catch (error) {
       console.error('Error getting/creating chat session:', error);
+      throw error;
+    }
+  };
+
+  // Add a method to update user's social connections
+  const updateUserSocialConnections = async (
+    userId: string,
+    connectionData: {
+      platform: 'discord' | 'twitter';
+      platformId: string;
+      username: string;
+      email?: string;
+      avatarUrl?: string;
+    }
+  ): Promise<BioUser> => {
+    try {
+      return await apiClient.put(`/api/users/${userId}/social-connections`, connectionData);
+    } catch (error) {
+      console.error(`Error updating ${connectionData.platform} connection:`, error);
       throw error;
     }
   };
@@ -670,8 +770,10 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     getUserByWallet,
     createUser,
     updateUser,
+    updateUserSocialConnections,
     getProjectById,
     getProjectsByUserId,
+    getProjectByPrivyId,
     createProject,
     updateProject,
     getProjectMembers,
@@ -692,6 +794,8 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     createChatMessage,
     getOrCreateChatSession,
     loading,
+    getTwitterByProjectId,
+    updateTwitterInfo,
   };
 
   return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
