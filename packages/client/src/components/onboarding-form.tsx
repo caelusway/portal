@@ -521,10 +521,6 @@ export function WelcomeForm() {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-hidden">
       <style>{animationStyle}</style>
-      {/* Debug authentication state in the UI during development */}
-      <div className="fixed top-2 right-2 text-xs text-white/70 bg-black/30 p-1 rounded">
-        Auth State: {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
-      </div>
 
       {!isAuthenticated || !user?.id ? (
         <Card className="w-full max-w-md border-bio-accent/20 border-t-4">
