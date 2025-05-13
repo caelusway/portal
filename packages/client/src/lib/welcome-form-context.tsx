@@ -50,6 +50,8 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     // Only run this effect if we have a Privy ID and haven't checked the profile yet
     if (privyUser?.id && !profileChecked) {
+      console.log('WelcomeFormProvider: Fetching profile with Privy ID:', privyUser.id);
+      console.log('WelcomeFormProvider: Profile checked:', profileChecked);
       const fetchProfileWithPrivyId = async () => {
         console.log('WelcomeFormProvider: Fetching profile with Privy ID:', privyUser.id);
         setIsLoading(true);
@@ -57,6 +59,11 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
         try {
           // Try to get user by privyId
           const bioUser = await getUserByPrivyId(privyUser.id);
+
+          console.log('WelcomeFormProvider: Fetching profile with Privy ID:', privyUser.id);
+          console.log('WelcomeFormProvider: Profile checked:', profileChecked);
+
+          console.log('WelcomeFormProvider: Bio user:', bioUser);
 
           if (!bioUser) {
             console.log('WelcomeFormProvider: No existing user found.');

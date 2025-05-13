@@ -21,6 +21,7 @@ import { useWelcomeForm } from '@/lib/welcome-form-context';
 import { useToast } from '@/hooks/use-toast';
 import { useDatabase } from '@/contexts/db-context';
 import { usePrivy } from '@privy-io/react-auth';
+import { getProjectByPrivyId } from '../lib/prisma-client';
 
 export function WelcomeForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,17 +73,14 @@ export function WelcomeForm() {
     const getProfile = async () => {
       if (user?.id) {
         try {
-          const profile = await getOnboardingProfile(user?.id);
+          const project = (await getProjectByPrivyId(user?.id)) as any;
 
           if (
-            profile?.full_name &&
-            profile?.project_name &&
-            profile?.project_description &&
-            profile?.project_vision &&
-            profile?.scientific_references &&
-            profile?.credential_links &&
-            profile?.team_members &&
-            profile?.motivation
+            project?.projectName &&
+            project?.projectDescription &&
+            project?.projectVision &&
+            project?.scientificReferences &&
+            project?.motivation
           ) {
             navigate('/chat');
           }

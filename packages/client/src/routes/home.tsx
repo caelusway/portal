@@ -59,6 +59,8 @@ export default function Home() {
         // Use the database context to check if the user has a project
         const project = await getProjectByPrivyId(user.id);
 
+        console.log('Home: Project:', project);
+
         // If project exists with required fields, consider profile complete
         const profileComplete = !!(
           project?.projectDescription &&
@@ -66,6 +68,8 @@ export default function Home() {
           project?.projectVision &&
           project?.projectLinks
         );
+
+        console.log('Home: Profile complete:', profileComplete);
 
         setHasCompletedProfile(profileComplete);
 

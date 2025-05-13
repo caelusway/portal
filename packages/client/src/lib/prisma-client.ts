@@ -2,7 +2,8 @@
 // This is a frontend client that communicates with the backend API
 // instead of using Prisma directly in the browser
 
-const API_BASE_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3002';
+const API_KEY = import.meta.env.VITE_API_KEY || '';
 
 // Utility function for API calls
 async function apiCall<T>(endpoint: string, method: string = 'GET', data?: any): Promise<T> {
@@ -13,6 +14,7 @@ async function apiCall<T>(endpoint: string, method: string = 'GET', data?: any):
       method,
       headers: {
         'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
       },
       credentials: 'include',
     };
