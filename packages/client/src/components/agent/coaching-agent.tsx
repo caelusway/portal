@@ -315,15 +315,12 @@ export function CoachingAgent() {
   const websocketRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const reconnectTimeoutRef = useRef<number | null>(null);
-  const reconnectAttempts = useRef<number>(0);
   const connectionErrorTimeoutRef = useRef<any>(null);
-  const MAX_RECONNECT_ATTEMPTS = 5;
-  const reconnectBaseDelay = 2000; // ms for exponential backoff
   const [isProjectDataReady, setIsProjectDataReady] = useState<boolean>(false);
   const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
   const animatedMessageIdRef = useRef<string | null>(null);
   const pingIntervalRef = useRef<number | null>(null);
+  const [reconnectTrigger, setReconnectTrigger] = useState<number>(0);
 
   // Get embedded wallet for authentication
   const embeddedWallet = wallets?.find(
@@ -603,7 +600,6 @@ export function CoachingAgent() {
           setIsConnected(true);
           setIsLoading(false);
           setWasEverConnected(true);
-          reconnectAttempts.current = 0;
 
           // Clear any connection error timeout
           if (connectionErrorTimeoutRef.current) {
@@ -816,29 +812,13 @@ export function CoachingAgent() {
             clearTimeout(connectionErrorTimeoutRef.current);
           }
 
-          // Only show the error if we're still disconnected after the delay
-          if (!isConnected) {
-          }
-
-          // Don't attempt to reconnect if the close was intentional (code 1000)
-          const shouldReconnect =
-            event.code !== 1000 && reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS;
-
-          if (shouldReconnect) {
-            reconnectAttempts.current++;
-            const delay = reconnectBaseDelay * Math.pow(2, reconnectAttempts.current);
-            console.log(
-              `Scheduling reconnection attempt ${reconnectAttempts.current}/${MAX_RECONNECT_ATTEMPTS} in ${Math.round(delay / 1000)}s`
-            );
-
-            reconnectTimeoutRef.current = window.setTimeout(connect, delay);
-          } else if (reconnectAttempts.current >= MAX_RECONNECT_ATTEMPTS) {
-            console.error('Maximum reconnection attempts reached');
+          // Show a message only if it wasn't an intentional close (code 1000)
+          if (event.code !== 1000) {
+            console.log('Connection closed, manual reconnect required');
             toast({
-              title: 'Connection Failed',
-              description: 'Unable to reconnect to the coaching agent. Please refresh the page.',
-              variant: 'destructive',
-              duration: 0,
+              title: 'Connection Closed',
+              description: 'Click the refresh button to reconnect when ready.',
+              duration: 5000,
             });
           }
         };
@@ -858,10 +838,6 @@ export function CoachingAgent() {
 
     // Cleanup function
     return () => {
-      if (reconnectTimeoutRef.current) {
-        window.clearTimeout(reconnectTimeoutRef.current);
-      }
-
       if (connectionErrorTimeoutRef.current) {
         clearTimeout(connectionErrorTimeoutRef.current);
         connectionErrorTimeoutRef.current = null;
@@ -873,22 +849,21 @@ export function CoachingAgent() {
       }
 
       if (websocketRef.current) {
-        websocketRef.current.close();
+        websocketRef.current.close(1000); // Use code 1000 for normal closure
       }
     };
-  }, [isAuthenticated, isProjectDataReady, project, refresh]);
+  }, [isAuthenticated, isProjectDataReady, project, refresh, reconnectTrigger]);
 
   // Manual reconnect function
   const handleManualRefresh = () => {
-    reconnectAttempts.current = 0;
-
     if (connectionErrorTimeoutRef.current) {
       clearTimeout(connectionErrorTimeoutRef.current);
       connectionErrorTimeoutRef.current = null;
     }
 
     if (websocketRef.current) {
-      websocketRef.current.close();
+      websocketRef.current.close(1000); // Use code 1000 for normal closure
+      websocketRef.current = null;
     }
 
     // Only reconnect if we have the project ID
@@ -902,6 +877,16 @@ export function CoachingAgent() {
       if (refresh) {
         refresh();
       }
+
+      // Set a small timeout to ensure the previous connection is fully closed
+      setTimeout(() => {
+        if (isProjectDataReady && project?.id) {
+          // No need to call connect directly - the useEffect will trigger
+          // when we refresh/update dependencies
+          setIsConnected(false); // Force the connection state to refresh
+          setReconnectTrigger((prev) => prev + 1); // Increment to trigger reconnection
+        }
+      }, 500);
     } else {
       toast({
         title: 'Connection Error',
@@ -1023,16 +1008,18 @@ export function CoachingAgent() {
             <div>
               <h2 className="text-lg font-semibold">Coaching Agent</h2>
               <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={`${
-                    isConnected ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-                  } text-xs`}
-                >
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </Badge>
+                <div className="flex items-center gap-1">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      isConnected ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {isConnected ? 'Connected' : 'Click refresh to connect'}
+                  </span>
+                </div>
                 <span className="text-xs text-muted-foreground">
-                  Level {level || project.level} Coach
+                  • Level {level || project.level} Coach
                 </span>
               </div>
             </div>
