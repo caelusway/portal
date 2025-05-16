@@ -18,6 +18,8 @@
         "node-opus": "^0.3.3",
         "opusscript": "^0.1.1",
         "permissionless": "^0.2.42",
+        "react-markdown": "^10.1.0",
+        "rehype-raw": "^7.0.0",
         "resend": "^4.2.0",
         "viem": "^2.27.0",
         "vittest": "^1.0.2",

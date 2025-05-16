@@ -69,10 +69,11 @@ export default function SettingsPage() {
         const updatedPrivyUser = privy.user;
 
         // Add debug logging
-        console.log('Updated Privy user:', updatedPrivyUser);
+        console.log('Updated Privy user for API call:', updatedPrivyUser);
+        console.log('Linked account details from callback:', linkedAccount);
 
         if (!updatedPrivyUser || !isAuthenticated) {
-          console.error('User not authenticated or not found');
+          console.error('User not authenticated or not found for API call');
           return;
         }
 
@@ -80,45 +81,45 @@ export default function SettingsPage() {
         const bioUser = await getUserByPrivyId(updatedPrivyUser.id);
 
         if (!bioUser) {
-          console.error('BioUser not found in database');
+          console.error('BioUser not found in database for API call');
           return;
         }
 
-        // Add debug logging for social accounts
-        console.log('Discord connection:', updatedPrivyUser.discord);
-        console.log('Twitter connection:', updatedPrivyUser.twitter);
-
         // Check which platform was linked and extract the data
         if (linkMethod === 'discord' && updatedPrivyUser.discord) {
-          // Use any type to bypass TypeScript checking
-          const discord = updatedPrivyUser.discord as any;
-
+          const discordAccount = updatedPrivyUser.discord as any; // Cast for now
           await updateUserSocialConnections(bioUser.id, {
             platform: 'discord',
-            platformId: discord.subject || '',
-            username: discord.username || '',
-            email: discord.email || undefined,
-            avatarUrl: discord.profileImage || discord.avatarUrl || discord.avatar || undefined,
+            platformId: discordAccount.subject || discordAccount.id || '',
+            username: discordAccount.username || '',
+            email: discordAccount.email || undefined,
+            avatarUrl:
+              discordAccount.profile_picture_url ||
+              discordAccount.profilePictureUrl ||
+              discordAccount.avatarUrl ||
+              discordAccount.avatar ||
+              undefined,
+            accessToken: discordAccount.accessToken || undefined, // Check actual field name from Privy
+            refreshToken: discordAccount.refreshToken || undefined, // Check actual field name from Privy
           });
-
-          console.log('Saved Discord connection to API');
+          console.log('Saved Discord connection to API with data:', { ...discordAccount });
         } else if (linkMethod === 'twitter' && updatedPrivyUser.twitter) {
-          // Use any type to bypass TypeScript checking
-          const twitter = updatedPrivyUser.twitter as any;
-
+          const twitterAccount = updatedPrivyUser.twitter as any; // Cast for now
           await updateUserSocialConnections(bioUser.id, {
             platform: 'twitter',
-            platformId: twitter.subject || '',
-            username: twitter.username || '',
+            platformId: twitterAccount.subject || twitterAccount.id || '',
+            username: twitterAccount.username || '',
             avatarUrl:
-              twitter.profileImage ||
-              twitter.avatarUrl ||
-              twitter.avatar ||
-              twitter.profilePictureUrl ||
+              twitterAccount.profile_picture_url ||
+              twitterAccount.profilePictureUrl ||
+              twitterAccount.avatarUrl ||
+              twitterAccount.avatar ||
               undefined,
+            name: twitterAccount.name || undefined, // For Twitter display name
+            accessToken: twitterAccount.accessToken || undefined, // Check actual field name from Privy
+            refreshToken: twitterAccount.refreshToken || undefined, // Check actual field name from Privy
           });
-
-          console.log('Saved Twitter connection to API');
+          console.log('Saved Twitter connection to API with data:', { ...twitterAccount });
         }
 
         toast({
@@ -436,132 +437,6 @@ export default function SettingsPage() {
               </Button>
             )}
           </div>
-
-          {/* Twitter Information Section */}
-          {twitterInfo && (
-            <div className="mt-6 border-t pt-4">
-              <h4 className="text-sm font-medium mb-3">Twitter Progress</h4>
-
-              <div className="space-y-4">
-                {/* Intro Tweets Count */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="introTweetsCount">Intro Tweets Count</Label>
-                    <Input
-                      id="introTweetsCount"
-                      type="number"
-                      value={twitterInfo.introTweetsCount || 0}
-                      onChange={(e) =>
-                        handleUpdateTwitterInfo({ introTweetsCount: parseInt(e.target.value) || 0 })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="twitterUsername">Twitter Username</Label>
-                    <Input
-                      id="twitterUsername"
-                      value={twitterInfo.twitterUsername || ''}
-                      onChange={(e) => handleUpdateTwitterInfo({ twitterUsername: e.target.value })}
-                      className="mt-1"
-                      placeholder="@username"
-                    />
-                  </div>
-                </div>
-
-                {/* Twitter Space */}
-                <div>
-                  <Label htmlFor="twitterSpaceUrl">Twitter Space URL</Label>
-                  <Input
-                    id="twitterSpaceUrl"
-                    value={twitterInfo.twitterSpaceUrl || ''}
-                    onChange={(e) => handleUpdateTwitterInfo({ twitterSpaceUrl: e.target.value })}
-                    className="mt-1"
-                    placeholder="https://twitter.com/i/spaces/..."
-                  />
-                  <div className="mt-2">
-                    <Label htmlFor="twitterSpaceDate">Twitter Space Date</Label>
-                    <Input
-                      id="twitterSpaceDate"
-                      type="date"
-                      value={
-                        twitterInfo.twitterSpaceDate
-                          ? new Date(twitterInfo.twitterSpaceDate).toISOString().split('T')[0]
-                          : ''
-                      }
-                      onChange={(e) =>
-                        handleUpdateTwitterInfo({
-                          twitterSpaceDate: e.target.value ? new Date(e.target.value) : null,
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                {/* Blogpost */}
-                <div>
-                  <Label htmlFor="blogpostUrl">Blogpost URL</Label>
-                  <Input
-                    id="blogpostUrl"
-                    value={twitterInfo.blogpostUrl || ''}
-                    onChange={(e) => handleUpdateTwitterInfo({ blogpostUrl: e.target.value })}
-                    className="mt-1"
-                    placeholder="https://yourblog.com/post/..."
-                  />
-                  <div className="mt-2">
-                    <Label htmlFor="blogpostDate">Blogpost Date</Label>
-                    <Input
-                      id="blogpostDate"
-                      type="date"
-                      value={
-                        twitterInfo.blogpostDate
-                          ? new Date(twitterInfo.blogpostDate).toISOString().split('T')[0]
-                          : ''
-                      }
-                      onChange={(e) =>
-                        handleUpdateTwitterInfo({
-                          blogpostDate: e.target.value ? new Date(e.target.value) : null,
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                {/* Twitter Thread */}
-                <div>
-                  <Label htmlFor="twitterThreadUrl">Twitter Thread URL</Label>
-                  <Input
-                    id="twitterThreadUrl"
-                    value={twitterInfo.twitterThreadUrl || ''}
-                    onChange={(e) => handleUpdateTwitterInfo({ twitterThreadUrl: e.target.value })}
-                    className="mt-1"
-                    placeholder="https://twitter.com/username/status/..."
-                  />
-                  <div className="mt-2">
-                    <Label htmlFor="twitterThreadDate">Twitter Thread Date</Label>
-                    <Input
-                      id="twitterThreadDate"
-                      type="date"
-                      value={
-                        twitterInfo.twitterThreadDate
-                          ? new Date(twitterInfo.twitterThreadDate).toISOString().split('T')[0]
-                          : ''
-                      }
-                      onChange={(e) =>
-                        handleUpdateTwitterInfo({
-                          twitterThreadDate: e.target.value ? new Date(e.target.value) : null,
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Personal Discord Account */}

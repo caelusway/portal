@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { UserLevelDisplay } from './user-level-display';
 import {
@@ -12,10 +12,13 @@ import {
   ArrowLeft,
   Users,
   FileText,
+  Twitter,
+  Mic2,
+  BookOpen,
+  MessageSquare,
+  Video,
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { LevelRequirementsPanel } from './level-requirements-panel';
-import { agentLevels } from '../config/agent-levels';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { useDashboardData } from '../hooks/use-dashboard-data';
 import { Badge } from './ui/badge';
@@ -26,28 +29,73 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { useAuth } from '../lib/use-auth';
 
-// Level 1 - Inception Stage: Science NFT Minting
+const agentLevels: Record<
+  number,
+  { name: string; description: string; levelupRequirements: string[] }
+> = {
+  1: {
+    name: 'Science NFT Creation',
+    description: 'Mint your core project NFTs to establish your scientific assets on-chain.',
+    levelupRequirements: ['Mint Idea NFT', 'Mint Vision NFT'],
+  },
+  2: {
+    name: 'Discord Setup',
+    description: "Establish your community's communication hub on Discord.",
+    levelupRequirements: [
+      'Share Discord invite link',
+      'Install verification bot',
+      'Reach 4+ members',
+    ],
+  },
+  3: {
+    name: 'Community Engagement',
+    description: 'Grow your Discord community and foster initial scientific engagement.',
+    levelupRequirements: ['Reach 5+ members', 'Share 5+ scientific papers', 'Send 50+ messages'],
+  },
+  4: {
+    name: 'Social Foundation',
+    description: "Establish your project's presence on Twitter.",
+    levelupRequirements: ['Connect Twitter account', 'Publish 3 introductory tweets'],
+  },
+  5: {
+    name: 'Community Verification & Outreach',
+    description: 'Grow a verified scientific community and engage them via Twitter Spaces.',
+    levelupRequirements: [
+      '10+ verified scientists/patients in Discord',
+      'Host a public Twitter Space',
+    ],
+  },
+  6: {
+    name: 'Vision Articulation',
+    description: "Articulate your DAO's long-term vision through a blogpost and Twitter thread.",
+    levelupRequirements: ['Publish a visionary blogpost', 'Share blogpost as a Twitter thread'],
+  },
+  7: {
+    name: 'Onboarding Completion',
+    description: 'Finalize onboarding by creating a welcome video. Congratulations!',
+    levelupRequirements: ['Record a welcome Loom video for new members'],
+  },
+};
 
-// Level 2 - Community Builder: Discord Setup and Team Invites
-
-// Level 3 - Scientific Collaborator: Paper Sharing and Community Growth
-
-// Level 4 - Ecosystem Partner: Congratulations Screen
-
-// Level 3 display components
 function ProgressCard({
   title,
   current,
   target,
   icon,
+  unit = '',
 }: {
   title: string;
   current: number;
   target: number;
   icon: React.ReactNode;
+  unit?: string;
 }) {
-  const progress = Math.min(100, Math.round((current / target) * 100));
+  const progress = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
 
   return (
     <div className="bg-card border rounded-lg p-4">
@@ -57,7 +105,10 @@ function ProgressCard({
       </div>
       <div className="flex items-end gap-1 mb-1">
         <span className="text-2xl font-bold">{current}</span>
-        <span className="text-muted-foreground text-sm">/ {target}</span>
+        <span className="text-muted-foreground text-sm">
+          / {target}
+          {unit}
+        </span>
       </div>
       <div className="w-full bg-muted rounded-full h-2">
         <div
@@ -76,9 +127,9 @@ function DiscordMetricsDisplay({
   metrics: { members: number; papers: number; messages: number };
 }) {
   const requirements = {
-    members: 10,
-    papers: 25,
-    messages: 100,
+    members: 5,
+    papers: 5,
+    messages: 50,
   };
 
   const allCompleted =
@@ -93,63 +144,19 @@ function DiscordMetricsDisplay({
           title="Discord Members"
           current={metrics.members}
           target={requirements.members}
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 8a6 6 0 0 0-6-6 6 6 0 0 0-6 6 7 7 0 0 0 12 5" />
-              <path d="M10 9a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1z" />
-              <path d="M14 16v3a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-5a1 1 0 0 0-1 1v1" />
-            </svg>
-          }
+          icon={<Users className="h-4 w-4 text-primary" />}
         />
         <ProgressCard
           title="Scientific Papers"
           current={metrics.papers}
           target={requirements.papers}
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-            </svg>
-          }
+          icon={<FileText className="h-4 w-4 text-primary" />}
         />
         <ProgressCard
           title="Discord Messages"
           current={metrics.messages}
           target={requirements.messages}
-          icon={
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-            </svg>
-          }
+          icon={<MessageSquare className="h-4 w-4 text-primary" />}
         />
       </div>
 
@@ -158,11 +165,11 @@ function DiscordMetricsDisplay({
           <div className="flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-green-500" />
             <h3 className="font-medium text-green-700 dark:text-green-400">
-              All requirements completed!
+              All Discord metrics for Level 3 completed!
             </h3>
           </div>
           <p className="text-green-600 dark:text-green-400 text-sm mt-1">
-            You've met all the Discord metrics requirements. Ready for next level!
+            You've met all the Discord metrics requirements for this level.
           </p>
         </div>
       )}
@@ -191,76 +198,43 @@ function DiscordMetricsDisplay({
         </h3>
         <p className="text-muted-foreground text-sm mt-2">
           Our Discord bot automatically tracks your server growth, scientific paper sharing, and
-          message activity. You'll be notified in chat when you've met all requirements for level 4!
+          message activity. You'll be notified in chat when you've met all requirements for the next
+          level!
         </p>
       </div>
     </div>
   );
 }
 
-function Level4CompletionScreen({
-  memberCount,
-  nftCount,
-}: {
-  memberCount: number;
-  nftCount: number;
-}) {
+function MaxLevelCompletionScreen({ projectName }: { projectName?: string }) {
   return (
     <div className="space-y-6">
-      <div className="border border-border bg-card shadow-sm rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+      <div className="border border-border bg-card shadow-sm rounded-lg p-6 text-center">
+        <Rocket className="h-16 w-16 text-primary mx-auto mb-4" />
+        <h2 className="text-2xl font-bold mb-4 flex items-center justify-center gap-2">
           <span className="bg-primary/10 text-primary p-1.5 rounded-full">
             <Crown className="h-5 w-5" />
           </span>
-          Congratulations!
+          Onboarding Complete!
         </h2>
         <div className="space-y-4">
-          <p className="text-lg">Your DAO is now Level 4!</p>
-
-          <p>The BIO team is now available to you, they'll reach out shortly.</p>
-
-          <p>Continue sharing papers, inviting community members, and discussing science.</p>
-
-          <p className="mt-6">
-            You can learn about the next phase of building your DAO in our sandbox guide.
+          <p className="text-lg">
+            Congratulations on completing all onboarding levels for {projectName || 'your BioDAO'}!
           </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="border border-border bg-card shadow-sm rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <span className="bg-primary/10 text-primary p-1.5 rounded-full">
-              <Users className="h-4 w-4" />
-            </span>
-            Community Status
-          </h3>
-          <div className="flex items-center gap-2 text-lg">
-            <span>
-              DAO Member Size: <strong>{memberCount || 10}</strong>
-            </span>
-          </div>
-        </div>
-
-        <div className="border border-border bg-card shadow-sm rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-            <span className="bg-primary/10 text-primary p-1.5 rounded-full">
-              <FileText className="h-4 w-4" />
-            </span>
-            Science Bank
-          </h3>
-          <div className="flex items-center gap-2 text-lg">
-            <span>
-              NFTs Minted: <strong>{nftCount || 3}</strong>
-            </span>
-          </div>
+          <p>
+            Your DAO is now fully set up and ready for growth. The BIO team and CoreAgent are here
+            to support your journey.
+          </p>
+          <p className="mt-6">
+            Explore advanced features, funding opportunities, and continue to build your scientific
+            community.
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-// Component to show Level 1/2 NFT & Discord Status
 function Level1And2MetricsDisplay({
   level,
   nfts,
@@ -272,12 +246,10 @@ function Level1And2MetricsDisplay({
   discordStats: any;
   project: any;
 }) {
-  // Find specific NFTs
   const ideaNFT = nfts?.find((nft) => nft.type === 'idea');
   const visionNFT = nfts?.find((nft) => nft.type === 'vision');
-  const discordMemberRequirement = 4; // For level 2 completion
+  const discordMemberRequirement = 4;
 
-  // Function to render NFT status with image
   const renderNFTStatus = (nft: any, type: string, name: string) => {
     const isMinted = !!nft;
     const imageUrl = nft?.imageUrl;
@@ -342,7 +314,6 @@ function Level1And2MetricsDisplay({
           <CardDescription>Establish your Discord presence.</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Discord Created Status */}
           <div className="flex items-center justify-between mb-3">
             <span className="flex items-center gap-2 text-sm font-medium">
               <svg
@@ -368,7 +339,6 @@ function Level1And2MetricsDisplay({
             )}
           </div>
 
-          {/* Discord Member Count Status*/}
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-2 text-sm font-medium">
               <svg
@@ -418,23 +388,299 @@ function Level1And2MetricsDisplay({
   );
 }
 
+function Level4SocialFoundationDisplay({
+  twitterInfo,
+  settingsUrl = '/settings?tab=connections',
+  user,
+}: {
+  twitterInfo?: { connected: boolean; username?: string; introTweetsCount: number };
+  settingsUrl?: string;
+  user: any;
+}) {
+  const tweetsRequired = 3;
+  const tweetsDone = twitterInfo?.introTweetsCount || 0;
+  const tweetsNeeded = Math.max(0, tweetsRequired - tweetsDone);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Social Foundation</CardTitle>
+        <CardDescription>Establish your project's presence on Twitter.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between p-3 border rounded bg-background">
+          <div className="flex items-center gap-3">
+            <Twitter className="h-6 w-6 text-blue-500" />
+            <div>
+              <p className="font-medium">Twitter Account</p>
+              {user?.twitter ? (
+                <p className="text-sm text-green-600">
+                  Connected as @{user.twitter.username || 'Unknown'}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Not Connected</p>
+              )}
+            </div>
+          </div>
+          {!user?.twitter && (
+            <Button asChild variant="outline" size="sm">
+              <a href={settingsUrl} target="_blank" rel="noopener noreferrer">
+                Connect Twitter
+              </a>
+            </Button>
+          )}
+        </div>
+
+        {user?.twitter && (
+          <div className="space-y-2">
+            <Label>Introductory Tweets</Label>
+            <ProgressCard
+              title="Tweets Published"
+              current={tweetsDone}
+              target={tweetsRequired}
+              icon={<MessageSquare className="h-4 w-4 text-primary" />}
+            />
+            {tweetsNeeded > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Publish {tweetsNeeded} more introductory tweet(s) about your DAO and share the URLs
+                with CoreAgent.
+              </p>
+            )}
+          </div>
+        )}
+
+        {twitterInfo?.connected && tweetsDone >= tweetsRequired && (
+          <p className="text-sm text-green-600 flex items-center gap-1">
+            <BadgeCheck className="h-4 w-4" /> All Twitter requirements met for Level 4!
+          </p>
+        )}
+        {!twitterInfo?.connected && (
+          <p className="text-sm text-muted-foreground">
+            Connect your Twitter account via settings to begin this stage.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Level5CommunityVerificationDisplay({
+  communityStats,
+}: {
+  communityStats?: {
+    verifiedScientists: number;
+    twitterSpaceHosted: boolean;
+    twitterSpaceUrl?: string | undefined;
+  };
+}) {
+  const scientistsRequired = 10;
+  const scientistsCurrent = communityStats?.verifiedScientists || 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Community Verification & Outreach (Level 5)</CardTitle>
+        <CardDescription>
+          Grow a verified scientific community and host a Twitter Space.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <ProgressCard
+          title="Verified Scientists/Patients"
+          current={scientistsCurrent}
+          target={scientistsRequired}
+          icon={<Users className="h-4 w-4 text-primary" />}
+        />
+        <p className="text-xs text-muted-foreground">
+          Members are verified via Discord bot DMs by sharing scientific profiles.
+        </p>
+
+        <div className="flex items-center justify-between p-3 border rounded bg-background">
+          <div className="flex items-center gap-3">
+            <Mic2 className="h-6 w-6 text-purple-500" />
+            <div>
+              <p className="font-medium">Public Twitter Space</p>
+              {communityStats?.twitterSpaceHosted ? (
+                <a
+                  href={communityStats.twitterSpaceUrl || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-green-600 hover:underline"
+                >
+                  Space Hosted (View Link)
+                </a>
+              ) : (
+                <p className="text-sm text-muted-foreground">Not Hosted Yet</p>
+              )}
+            </div>
+          </div>
+          {!communityStats?.twitterSpaceHosted && (
+            <p className="text-xs text-muted-foreground text-right">
+              Host and share URL with CoreAgent.
+            </p>
+          )}
+        </div>
+        {communityStats?.twitterSpaceHosted && scientistsCurrent >= scientistsRequired && (
+          <p className="text-sm text-green-600 flex items-center gap-1">
+            <BadgeCheck className="h-4 w-4" /> All requirements met for Level 5!
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Level6VisionArticulationDisplay({
+  visionContent,
+}: {
+  visionContent?: { blogpostUrl?: string; twitterThreadUrl?: string };
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Vision Articulation (Level 6)</CardTitle>
+        <CardDescription>
+          Publish a visionary blogpost and share it as a Twitter thread.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between p-3 border rounded bg-background">
+          <div className="flex items-center gap-3">
+            <BookOpen className="h-6 w-6 text-indigo-500" />
+            <div>
+              <p className="font-medium">Visionary Blogpost</p>
+              {visionContent?.blogpostUrl ? (
+                <a
+                  href={visionContent.blogpostUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-green-600 hover:underline"
+                >
+                  Blogpost Published (View Link)
+                </a>
+              ) : (
+                <p className="text-sm text-muted-foreground">Not Published Yet</p>
+              )}
+            </div>
+          </div>
+          {!visionContent?.blogpostUrl && (
+            <p className="text-xs text-muted-foreground text-right">
+              Publish and share URL with CoreAgent.
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between p-3 border rounded bg-background">
+          <div className="flex items-center gap-3">
+            <MessageSquare className="h-6 w-6 text-blue-400" />
+            <div>
+              <p className="font-medium">Twitter Thread</p>
+              {visionContent?.twitterThreadUrl ? (
+                <a
+                  href={visionContent.twitterThreadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-green-600 hover:underline"
+                >
+                  Thread Shared (View Link)
+                </a>
+              ) : (
+                <p className="text-sm text-muted-foreground">Not Shared Yet</p>
+              )}
+            </div>
+          </div>
+          {!visionContent?.twitterThreadUrl && (
+            <p className="text-xs text-muted-foreground text-right">
+              Share and provide first tweet URL to CoreAgent.
+            </p>
+          )}
+        </div>
+        {visionContent?.blogpostUrl && visionContent?.twitterThreadUrl && (
+          <p className="text-sm text-green-600 flex items-center gap-1">
+            <BadgeCheck className="h-4 w-4" /> All requirements met for Level 6!
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Level7OnboardingCompletionDisplay({
+  completionData,
+}: {
+  completionData?: { loomVideoUrl?: string };
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Onboarding Completion (Level 7)</CardTitle>
+        <CardDescription>Create a welcome Loom video for new members.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between p-3 border rounded bg-background">
+          <div className="flex items-center gap-3">
+            <Video className="h-6 w-6 text-red-500" />
+            <div>
+              <p className="font-medium">Welcome Loom Video</p>
+              {completionData?.loomVideoUrl ? (
+                <a
+                  href={completionData.loomVideoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-green-600 hover:underline"
+                >
+                  Video Submitted (View Link)
+                </a>
+              ) : (
+                <p className="text-sm text-muted-foreground">Not Submitted Yet</p>
+              )}
+            </div>
+          </div>
+          {!completionData?.loomVideoUrl && (
+            <p className="text-xs text-muted-foreground text-right">
+              Record and share URL with CoreAgent.
+            </p>
+          )}
+        </div>
+        {completionData?.loomVideoUrl && (
+          <div className="mt-4 p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg text-center">
+            <BadgeCheck className="h-10 w-10 text-green-500 mx-auto mb-2" />
+            <h3 className="font-semibold text-green-700 dark:text-green-400">
+              Congratulations! BioDAO Onboarding Complete!
+            </h3>
+            <p className="text-sm text-green-600 dark:text-green-500 mt-1">
+              You have successfully completed all stages of the onboarding process.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function LevelRequirementsList({ level, currentLevel }: { level: number; currentLevel?: number }) {
   const levelData = agentLevels[level];
 
-  if (!levelData) return null;
+  if (!levelData) return <p className="text-muted-foreground">Level data not found.</p>;
   const isCompleted = currentLevel && level < currentLevel;
   const isCurrent = currentLevel && level === currentLevel;
+
+  let LevelIcon = Star;
+  let iconColor = 'text-primary';
+  if (level >= 5 && level < 7) {
+    LevelIcon = Rocket;
+    iconColor = 'text-orange-500';
+  } else if (level >= 7) {
+    LevelIcon = Crown;
+    iconColor = 'text-amber-500';
+  }
 
   return (
     <Card className={`mb-6 ${isCompleted ? 'opacity-70 border-dashed' : ''}`}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span className="flex items-center gap-2">
-            {level < 4 ? (
-              <Star className="h-5 w-5 text-primary" />
-            ) : (
-              <Crown className="h-5 w-5 text-amber-500" />
-            )}
+            <LevelIcon className={`h-5 w-5 ${iconColor}`} />
             Level {level}: {levelData.name}
           </span>
           {isCompleted && <BadgeCheck className="h-6 w-6 text-green-500" />}
@@ -444,9 +690,15 @@ function LevelRequirementsList({ level, currentLevel }: { level: number; current
       <CardContent>
         <p className="text-muted-foreground mb-4">{levelData.description}</p>
 
-        {levelData.levelupRequirements.length > 0 ? (
+        {levelData.levelupRequirements.length > 0 &&
+        !(
+          level === 7 &&
+          levelData.levelupRequirements[0]?.includes('All onboarding requirements completed!')
+        ) ? (
           <>
-            <h4 className="font-medium mb-2">Requirements to reach Level {level + 1}:</h4>
+            <h4 className="font-medium mb-2">
+              Requirements to reach Level {level + 1 > 7 ? 'Completion' : level + 1}:
+            </h4>
             <ul className="space-y-2 mb-4">
               {levelData.levelupRequirements.map((req, index) => (
                 <li key={index} className="flex items-start gap-2 text-sm">
@@ -456,7 +708,9 @@ function LevelRequirementsList({ level, currentLevel }: { level: number; current
                     {isCompleted ? (
                       <BadgeCheck className="h-3 w-3 text-green-600" />
                     ) : (
-                      <span className="text-xs">{index + 1}</span>
+                      <span className={`text-xs ${isCompleted ? '' : 'text-primary'}`}>
+                        {index + 1}
+                      </span>
                     )}
                   </div>
                   <span className={isCompleted ? 'line-through text-muted-foreground' : ''}>
@@ -467,16 +721,17 @@ function LevelRequirementsList({ level, currentLevel }: { level: number; current
             </ul>
           </>
         ) : (
-          level === 4 && (
-            <p className="text-sm mb-4">Maximum level achieved. Continue growing your DAO!</p>
-          )
+          <p className="text-sm mb-4 text-green-600 font-medium">
+            {level === 7
+              ? 'All onboarding requirements completed!'
+              : 'No further requirements for this level.'}
+          </p>
         )}
       </CardContent>
     </Card>
   );
 }
 
-// Discord Tutorial Video component for Level 2
 function DiscordTutorialVideo() {
   return (
     <div className="border border-border bg-card shadow-sm rounded-lg p-4 mb-6">
@@ -535,34 +790,70 @@ function DiscordTutorialVideo() {
 }
 
 export function DashboardLayout() {
-  const { level, project, discordStats, nfts, progress, isLoading, error, refresh } =
-    useDashboardData();
-  const [userLevel, setUserLevel] = useState<number>(1); // Actual current level
-  const [viewedLevel, setViewedLevel] = useState<number>(1); // Level being viewed
+  const { level, project, discordStats, nfts, isLoading, error, refresh } = useDashboardData();
+  const [userLevel, setUserLevel] = useState<number>(1);
+  const [viewedLevel, setViewedLevel] = useState<number>(1);
+  const { user } = useAuth();
 
-  // Update userLevel whenever level changes or when project data loads
+  const totalLevels = Object.keys(agentLevels).length;
+
   useEffect(() => {
-    // Only update if level is available and valid
     if (level && typeof level === 'number') {
-      setUserLevel(level);
-      // Only update viewedLevel if it hasn't been manually changed by the user yet,
-      // or if the user's actual level increases beyond the currently viewed one.
-      setViewedLevel((currentViewed) => (level >= currentViewed ? level : currentViewed));
+      const currentActualLevel = Math.min(level, totalLevels);
+      setUserLevel(currentActualLevel);
+      setViewedLevel((currentViewed) =>
+        currentActualLevel >= currentViewed ? currentActualLevel : currentViewed
+      );
     }
-  }, [level]);
+  }, [level, totalLevels]);
 
-  // Calculate metrics from real data
-  const metricsData = {
+  const discordMetricsDataL3 = {
     members: discordStats?.memberCount || 0,
     papers: discordStats?.papersShared || 0,
     messages: discordStats?.messagesCount || 0,
   };
 
-  // Get current level requirements
-  const currentLevelData = agentLevels[userLevel];
-  const nextLevelRequirements = currentLevelData?.levelupRequirements || [];
+  // Derive data for levels 4-7 directly from the project object
+  // const projectTwitter = project?.Twitter || {}; // Keep this in mind for typing, but use project.Twitter directly in useMemo for safety
+  // const verifiedScientistCount = project?.verifiedScientistCount || 0;
 
-  // Render skeleton loaders for level requirements
+  const placeholderTwitterInfo = useMemo(
+    () => ({
+      connected: project?.Twitter?.connected || false,
+      username: project?.Twitter?.twitterUsername || '',
+      introTweetsCount: project?.Twitter?.introTweetsCount || 0,
+    }),
+    [project?.Twitter]
+  );
+
+  const placeholderCommunityStats = useMemo(
+    () => ({
+      verifiedScientists: project?.verifiedScientistCount || 0,
+      twitterSpaceHosted: !!project?.Twitter?.twitterSpaceUrl,
+      twitterSpaceUrl:
+        project?.Twitter?.twitterSpaceUrl === null ? undefined : project?.Twitter?.twitterSpaceUrl,
+    }),
+    [project?.Twitter, project?.verifiedScientistCount]
+  );
+
+  const placeholderVisionContent = useMemo(
+    () => ({
+      blogpostUrl: project?.Twitter?.blogpostUrl || undefined,
+      twitterThreadUrl: project?.Twitter?.twitterThreadUrl || undefined,
+    }),
+    [project?.Twitter]
+  );
+
+  const placeholderCompletionData = useMemo(
+    () => ({
+      loomVideoUrl: project?.Twitter?.loomVideoUrl || undefined,
+    }),
+    [project?.Twitter]
+  );
+
+  const currentLevelDataForHeader = agentLevels[userLevel];
+  const nextLevelRequirementsHeader = currentLevelDataForHeader?.levelupRequirements || [];
+
   const renderSkeletonLevelRequirements = () => (
     <Card className="mb-4">
       <CardHeader className="pb-2">
@@ -585,114 +876,125 @@ export function DashboardLayout() {
     </Card>
   );
 
-  // Skeleton metrics display
-  const renderSkeletonMetrics = () => (
+  const renderSkeletonMetrics = (count = 2) => (
     <div className="space-y-4">
-      <div className="h-6 bg-muted rounded w-1/4 animate-pulse"></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="h-5 bg-muted rounded w-1/3 animate-pulse"></div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <div className="h-10 w-10 rounded-full bg-muted animate-pulse"></div>
-              <div className="h-5 flex-1 bg-muted rounded animate-pulse"></div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="h-5 bg-muted rounded w-1/3 animate-pulse"></div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <div className="h-10 w-10 rounded-full bg-muted animate-pulse"></div>
-              <div className="h-5 flex-1 bg-muted rounded animate-pulse"></div>
-            </div>
-            <div className="flex items-center gap-2 mt-3">
-              <div className="h-10 w-10 rounded-full bg-muted animate-pulse"></div>
-              <div className="h-5 flex-1 bg-muted rounded animate-pulse"></div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="h-6 bg-muted rounded w-1/4 animate-pulse mb-4"></div>
+      {Array(count)
+        .fill(0)
+        .map((_, i) => (
+          <Card key={i} className="mb-4">
+            <CardHeader className="pb-2">
+              <div className="h-5 bg-muted rounded w-1/3 animate-pulse"></div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-full bg-muted animate-pulse"></div>
+                <div className="h-5 flex-1 bg-muted rounded animate-pulse"></div>
+              </div>
+              {i % 2 === 0 && (
+                <div className="flex items-center gap-2 mt-3">
+                  <div className="h-10 w-10 rounded-full bg-muted animate-pulse"></div>
+                  <div className="h-5 flex-1 bg-muted rounded animate-pulse"></div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
     </div>
   );
 
   return (
     <div className="container py-4 space-y-4">
-      {/* Compact Overview Row with Basic Stats */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-        {/* Current Level Display - 4 columns */}
         <div className="md:col-span-4 bg-card rounded-lg border shadow-sm p-4">
           <UserLevelDisplay />
         </div>
 
-        {/* Level Requirements Brief - 8 columns */}
         <div className="md:col-span-8 bg-card rounded-lg border shadow-sm p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <div className="bg-primary/10 p-1.5 rounded-full">
                 <Star className="h-5 w-5 text-primary" />
               </div>
-              <h3 className="text-base font-medium mt-6">Level {userLevel} Requirements</h3>
+              <h3 className="text-base font-medium">Current Progress (Level {userLevel})</h3>
             </div>
 
-            {userLevel > 1 ? (
+            {userLevel > 0 ? (
               <div className="flex items-center gap-2">
                 <label htmlFor="level-select" className="text-sm text-muted-foreground shrink-0">
                   View Level:
                 </label>
                 <Select
                   value={viewedLevel.toString()}
-                  onValueChange={(value) => setViewedLevel(parseInt(value))}
+                  onValueChange={(value) => setViewedLevel(Math.min(parseInt(value), totalLevels))}
                 >
                   <SelectTrigger id="level-select" className="w-[140px] h-8">
                     <SelectValue placeholder="Select level..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: userLevel }, (_, i) => i + 1).map((i) => (
-                      <SelectItem key={i} value={i.toString()}>
-                        Level {i} {i === userLevel ? '(Current)' : ''}
-                      </SelectItem>
-                    ))}
+                    {Object.keys(agentLevels)
+                      .map((levelKey) => parseInt(levelKey))
+                      .filter(
+                        (lk) => lk <= userLevel || (lk === userLevel + 1 && userLevel < totalLevels)
+                      )
+                      .map((i) => (
+                        <SelectItem
+                          key={i}
+                          value={i.toString()}
+                          disabled={i > userLevel + 1 && userLevel < totalLevels && i !== 1}
+                        >
+                          Level {i}{' '}
+                          {i === userLevel
+                            ? '(Current)'
+                            : i === userLevel + 1 && userLevel < totalLevels
+                              ? '(Next)'
+                              : ''}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
             ) : (
-              <Badge>Level 1</Badge>
+              <Badge>Level {userLevel}</Badge>
             )}
           </div>
 
-          {/* Show compact version of current level requirements */}
-          {nextLevelRequirements.length > 0 ? (
+          {nextLevelRequirementsHeader.length > 0 &&
+          !(
+            userLevel === totalLevels &&
+            agentLevels[totalLevels]?.levelupRequirements[0]?.includes(
+              'All onboarding requirements completed!'
+            )
+          ) ? (
             <ul className="space-y-1 mt-2">
-              {nextLevelRequirements.slice(0, 3).map((req, idx) => (
-                <li key={idx} className="flex items-start gap-2 text-sm">
-                  <div className="h-5 w-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-xs">{idx + 1}</span>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">
+                To reach Level {userLevel + 1 > totalLevels ? 'Completion' : userLevel + 1}:
+              </p>
+              {nextLevelRequirementsHeader.slice(0, 3).map((req, idx) => (
+                <li key={idx} className="flex items-start gap-1.5 text-sm">
+                  <div className="h-4 w-4 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-xs text-primary">{idx + 1}</span>
                   </div>
                   <span className="text-muted-foreground">{req}</span>
                 </li>
               ))}
-              {nextLevelRequirements.length > 3 && (
+              {nextLevelRequirementsHeader.length > 3 && (
                 <li className="text-xs text-muted-foreground pl-7">
-                  +{nextLevelRequirements.length - 3} more requirements
+                  +{nextLevelRequirementsHeader.length - 3} more tasks
                 </li>
               )}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground mt-2">
-              Maximum level achieved. Continue growing your DAO!
+            <p className="text-sm text-green-600 mt-2">
+              {userLevel === totalLevels
+                ? 'All onboarding levels completed! 🎉'
+                : 'Loading requirements...'}
             </p>
           )}
         </div>
       </div>
 
-      {/* Two Column Layout - Requirements and Metrics side by side */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Left Column - Level Requirements */}
         <div className="bg-card rounded-lg border shadow-sm p-4">
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2">
@@ -702,7 +1004,7 @@ export function DashboardLayout() {
               <h2 className="text-lg font-medium">Requirements & Goals</h2>
             </div>
 
-            {viewedLevel !== userLevel && (
+            {viewedLevel !== userLevel && userLevel > 0 && (
               <Button
                 variant="outline"
                 size="sm"
@@ -721,39 +1023,22 @@ export function DashboardLayout() {
             <LevelRequirementsList level={viewedLevel} currentLevel={userLevel} />
           )}
 
-          {/* How to Progress */}
           <div className="border border-border bg-muted/30 rounded-lg p-3 mt-4">
             <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
               <div className="bg-primary/10 p-1 rounded-full">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-primary"
-                >
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4" />
-                  <path d="M12 8h.01" />
-                </svg>
+                <Rocket className="h-3.5 w-3.5 text-primary" />
               </div>
               How to Progress
             </h3>
             <div className="border-l-2 border-primary/30 pl-3 mt-1">
               <p className="text-muted-foreground text-xs">
-                Use the chat with our AI agent to complete tasks and progress to the next level. All
-                actions must be taken through the agent chat.
+                Use the chat with our AI agent (CoreAgent) to complete tasks and progress to the
+                next level. All actions must be taken through the agent chat.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Right Column - Status & Metrics */}
         <div className="bg-card rounded-lg border shadow-sm p-4">
           <div className="flex items-center gap-2 mb-3">
             <Badge variant="outline" className="py-1">
@@ -763,36 +1048,70 @@ export function DashboardLayout() {
           </div>
 
           {isLoading ? (
-            renderSkeletonMetrics()
+            renderSkeletonMetrics(viewedLevel > 3 ? 1 : 2)
           ) : (
             <>
               {(() => {
+                if (!agentLevels[viewedLevel]) {
+                  if (userLevel >= totalLevels) {
+                    return <MaxLevelCompletionScreen projectName={project?.name} />;
+                  }
+                  return (
+                    <div>Select a valid level to view details. Current Level: {userLevel}</div>
+                  );
+                }
                 switch (viewedLevel) {
                   case 1:
                   case 2:
                     return (
                       <Level1And2MetricsDisplay
                         level={viewedLevel}
-                        nfts={nfts}
+                        nfts={nfts || []}
                         discordStats={discordStats}
                         project={project}
                       />
                     );
                   case 3:
-                    return <DiscordMetricsDisplay metrics={metricsData} />;
+                    return <DiscordMetricsDisplay metrics={discordMetricsDataL3} />;
                   case 4:
                     return (
-                      <Level4CompletionScreen
-                        memberCount={metricsData.members}
-                        nftCount={nfts?.length || 0}
+                      <Level4SocialFoundationDisplay
+                        twitterInfo={placeholderTwitterInfo}
+                        settingsUrl={
+                          process.env.VITE_PUBLIC_APP_URL
+                            ? `${process.env.VITE_PUBLIC_APP_URL}/settings?tab=connections`
+                            : '/settings?tab=connections'
+                        }
+                        user={user}
+                      />
+                    );
+                  case 5:
+                    return (
+                      <Level5CommunityVerificationDisplay
+                        communityStats={
+                          placeholderCommunityStats as {
+                            verifiedScientists: number;
+                            twitterSpaceHosted: boolean;
+                            twitterSpaceUrl?: string | undefined;
+                          }
+                        }
+                      />
+                    );
+                  case 6:
+                    return (
+                      <Level6VisionArticulationDisplay visionContent={placeholderVisionContent} />
+                    );
+                  case 7:
+                    return (
+                      <Level7OnboardingCompletionDisplay
+                        completionData={placeholderCompletionData}
                       />
                     );
                   default:
-                    return <div>Select a level to view details.</div>;
+                    return <div>Details for Level {viewedLevel} will be shown here.</div>;
                 }
               })()}
 
-              {/* Show tutorial video only when viewing level 2 */}
               {viewedLevel === 2 && <DiscordTutorialVideo />}
             </>
           )}

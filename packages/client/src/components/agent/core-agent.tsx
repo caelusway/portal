@@ -51,6 +51,8 @@ interface WebSocketMessage {
   type: string;
   content?: string;
   userId?: string;
+  sessionType?: string;
+  sessionId?: string;
   [key: string]: any;
 }
 
@@ -444,6 +446,7 @@ export function CoreAgent() {
   const buildAuthPayload = (user: any, walletAddress: string | null) => {
     return {
       type: 'auth',
+      sessionType: 'coreagent',
       ...(walletAddress ? { wallet: walletAddress } : {}),
       ...(user?.id ? { privyId: user.id } : {}),
       ...(user?.email ? { email: user.email } : {}),
@@ -465,6 +468,8 @@ export function CoreAgent() {
             type: 'check_progress',
             timestamp: Date.now(),
             currentLevel: userLevel, // Send current level to help server verification
+            sessionType: 'coreagent',
+            ...(sessionId ? { sessionId } : {}), // Only include if not null
           })
         );
 
@@ -474,7 +479,7 @@ export function CoreAgent() {
     } catch (error) {
       console.error('[CoreAgent] Error checking progress:', error);
     }
-  }, [projectId, userLevel]);
+  }, [projectId, userLevel, sessionId]);
 
   // Utility: Get wallet address from user/wallets
   const getWalletAddress = (user: any, wallets: any, embeddedWallet: any): string | null => {
@@ -495,6 +500,8 @@ export function CoreAgent() {
     const message: WebSocketMessage = {
       type: 'message',
       content,
+      sessionType: 'coreagent',
+      ...(sessionId ? { sessionId } : {}), // Only include if not null
       ...(typeof projectId === 'string' ? { userId: projectId } : {}),
     };
     // Add the user message to the UI
@@ -825,10 +832,29 @@ export function CoreAgent() {
 
   // Load chat history when session ID changes
   useEffect(() => {
-    if (!sessionId) return;
+    if (!project?.id) return;
+
     setChatHistoryLoading(true);
+
     const loadChatHistory = async () => {
       try {
+        if (!sessionId) {
+          // No existing session found, create a new one
+          console.log('[CoreAgent] No existing session found, creating new session');
+          const newSession = await getOrCreateChatSession(project.id, 'coreagent');
+          console.log('[CoreAgent] Created new session:', newSession);
+
+          if (newSession) {
+            // No need to load messages as it's a new session
+            setMessages([]);
+            refresh();
+            setChatHistoryLoading(false);
+          }
+          return;
+        }
+
+        // We have a session ID, load messages
+        console.log('[CoreAgent] Loading messages for session:', sessionId);
         const messages = await getChatMessagesBySessionId(sessionId);
         if (messages && Array.isArray(messages)) {
           const formattedMessages = messages.map((msg) => ({
@@ -845,10 +871,12 @@ export function CoreAgent() {
         }
       } catch (error) {
         console.error('Error loading chat history:', error);
+        setChatHistoryLoading(false);
       }
     };
+
     loadChatHistory();
-  }, [sessionId, getChatMessagesBySessionId]);
+  }, [project?.id, sessionId, getChatMessagesBySessionId, getOrCreateChatSession, refresh]);
 
   // Always scroll to bottom when chat history loads or messages change
   useEffect(() => {
@@ -874,6 +902,8 @@ export function CoreAgent() {
         JSON.stringify({
           type: 'get_nfts',
           userId: projectId,
+          sessionType: 'coreagent',
+          ...(sessionId ? { sessionId } : {}), // Only include if not null
           forceRefresh: true,
         })
       );
@@ -881,6 +911,8 @@ export function CoreAgent() {
         JSON.stringify({
           type: 'check_progress',
           timestamp: Date.now(),
+          sessionType: 'coreagent',
+          ...(sessionId ? { sessionId } : {}), // Only include if not null
           forceRefresh: true,
           currentLevel: userLevel,
         })
@@ -1167,7 +1199,7 @@ export function CoreAgent() {
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground shrink-0">Transaction</span>
                         <a
-                          href={`https://basescan.io/tx/${nft.transactionHash}`}
+                          href={`https://basescan.org/tx/${nft.transactionHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline text-right font-medium break-all"

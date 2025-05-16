@@ -19,6 +19,26 @@ export interface Profile {
   level?: number;
 }
 
+export interface Twitter {
+  id: string;
+  projectId: string;
+  connected: boolean;
+  twitterUsername: string | null;
+  twitterId: string | null;
+  introTweetsCount: number;
+  tweetIds: string | null;
+  twitterSpaceUrl: string | null;
+  twitterSpaceDate: string | null;
+  blogpostUrl: string | null;
+  blogpostDate: string | null;
+  twitterThreadUrl: string | null;
+  twitterThreadDate: string | null;
+  loomVideoUrl: string | null;
+  loomVideoDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Keep OnboardingProfile as an alias to Profile for backward compatibility
 export type OnboardingProfile = Profile;
 
@@ -30,6 +50,10 @@ export interface Project {
   vision?: string;
   created_at: string;
   level?: number;
+  Twitter?: Twitter;
+  Discord?: Discord;
+  NFTs?: NFT[];
+  verifiedScientistCount?: number;
 }
 
 export interface AgentInteraction {
@@ -81,29 +105,31 @@ export interface LevelRequirements {
 export interface NFT {
   id: string;
   type: string;
-  mintedAt: Date;
+  mintedAt: string;
   projectId: string;
-  transactionHash?: string;
-  imageUrl?: string;
+  transactionHash?: string | null;
+  imageUrl?: string | null;
+  tokenId?: string | null;
+  metadataUri?: string | null;
 }
 
 export interface Discord {
   id: string;
   serverId: string;
+  inviteLink?: string | null;
   memberCount: number;
   papersShared: number;
   messagesCount: number;
   qualityScore: number;
-  projectId: string;
-  createdAt: Date;
-  updatedAt: Date;
-  inviteLink: string;
   botAdded: boolean;
-  botAddedAt?: Date;
-  verificationToken?: string;
+  botAddedAt?: string | null;
+  verificationToken?: string | null;
   verified: boolean;
-  serverIcon?: string;
-  serverName?: string;
+  serverIcon?: string | null;
+  serverName?: string | null;
+  projectId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**

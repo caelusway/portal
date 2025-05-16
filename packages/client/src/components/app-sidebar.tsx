@@ -27,6 +27,7 @@ import {
   LogOut,
   Users,
   Settings,
+  Compass,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
@@ -135,6 +136,28 @@ export function AppSidebar() {
                               </div>
                             </div>
                             <span className="text-base">CoreAgent</span>
+                          </div>
+                        </SidebarMenuButton>
+                      </NavLink>
+                    </SidebarMenuItem>
+
+                    {/* Coaching Agent Item */}
+                    <SidebarMenuItem>
+                      <NavLink to="/coaching">
+                        <SidebarMenuButton
+                          isActive={location.pathname === '/coaching'}
+                          className="transition-colors px-4 my-2 h-full py-1 rounded-md"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 flex justify-center items-center">
+                              <div className="relative bg-indigo-600 rounded-full w-full h-full">
+                                <div className="text-sm rounded-full h-full w-full flex justify-center items-center overflow-hidden">
+                                  <Compass className="w-5 h-5 text-white" />
+                                  <div className="absolute bottom-0 right-0 w-[10px] h-[10px] rounded-full border-[1px] border-white bg-green-500" />
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-base">Coaching Agent</span>
                           </div>
                         </SidebarMenuButton>
                       </NavLink>

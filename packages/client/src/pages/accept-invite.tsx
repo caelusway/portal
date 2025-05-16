@@ -91,6 +91,8 @@ export default function AcceptInvite() {
       // Now accept the invitation
       const success = await acceptInvite(token, bioUser.id);
 
+      console.log('AcceptInvite: Success: a', success);
+
       if (success) {
         toast({
           title: 'Invitation accepted',

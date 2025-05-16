@@ -24,6 +24,7 @@ import SettingsPage from './pages/settings';
 import CoreAgentRoute from './routes/core-agent';
 import { UserLevelProvider } from './lib/user-level.tsx';
 import { CoreAgent } from './components/agent/core-agent';
+import { CoachingAgent } from './components/agent/coaching-agent';
 import { DatabaseProvider } from './contexts/db-context';
 import { RequireOnboarding } from './lib/require-onboarding';
 import Chat from './routes/chat';
@@ -121,6 +122,14 @@ function AuthenticatedRoutes() {
         element={
           <RequireAuth>
             <Chat />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/coaching"
+        element={
+          <RequireAuth>
+            <CoachingAgent />
           </RequireAuth>
         }
       />

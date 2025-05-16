@@ -125,6 +125,7 @@ export interface Discord {
 export interface ChatSession {
   id: string;
   projectId: string;
+  sessionType?: string;
   startedAt: Date;
   updatedAt: Date;
 }
@@ -188,14 +189,14 @@ interface DatabaseContextType {
   ) => Promise<Twitter>;
 
   // Chat methods
-  getChatSessionsByProjectId: (projectId: string) => Promise<ChatSession[]>;
+  getChatSessionsByProjectId: (projectId: string, sessionType?: string) => Promise<ChatSession[]>;
   getChatMessagesBySessionId: (sessionId: string) => Promise<ChatMessage[]>;
   createChatMessage: (
     sessionId: string,
     content: string,
     isFromAgent: boolean
   ) => Promise<ChatMessage>;
-  getOrCreateChatSession: (projectId: string) => Promise<ChatSession>;
+  getOrCreateChatSession: (projectId: string, sessionType?: string) => Promise<ChatSession>;
 
   getProjectByPrivyId: (privyId: string) => Promise<Project | null>;
 
@@ -211,6 +212,9 @@ interface DatabaseContextType {
       username: string;
       email?: string;
       avatarUrl?: string;
+      name?: string;
+      accessToken?: string;
+      refreshToken?: string;
     }
   ) => Promise<BioUser>;
 }
@@ -324,6 +328,7 @@ const DatabaseContext = createContext<DatabaseContextType>({
   getOrCreateChatSession: async () => ({
     id: '',
     projectId: '',
+    sessionType: 'coreagent',
     startedAt: new Date(),
     updatedAt: new Date(),
   }),
@@ -601,6 +606,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const acceptInvite = async (token: string, userId: string): Promise<boolean> => {
     try {
       const result = await apiClient.post(`/api/invites/accept`, { token, userId });
+      console.log('AcceptInvite: Result:', result);
       return result.success || false;
     } catch (error) {
       console.error('Error accepting invite:', error);
@@ -647,7 +653,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     userId: string
   ): Promise<Discord | null> => {
     try {
-      return await apiClient.get(`/api/projects/${projectId}/discord?userId=${userId}`);
+      return await apiClient.get(`/api/projects/${projectId}/discord`);
     } catch (error) {
       console.error('Error fetching Discord info:', error);
       return null;
@@ -683,7 +689,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     userId: string
   ): Promise<Twitter | null> => {
     try {
-      return await apiClient.get(`/api/projects/${projectId}/twitter?userId=${userId}`);
+      return await apiClient.get(`/api/projects/${projectId}/twitter`);
     } catch (error) {
       console.error('Error fetching Twitter info:', error);
       return null;
@@ -704,9 +710,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   // Chat methods
-  const getChatSessionsByProjectId = async (projectId: string): Promise<ChatSession[]> => {
+  const getChatSessionsByProjectId = async (
+    projectId: string,
+    sessionType: string = 'coreagent'
+  ): Promise<ChatSession[]> => {
     try {
-      return await apiClient.get(`/api/chat/sessions/project/${projectId}`);
+      return await apiClient.get(`/api/chat/sessions/project/${projectId}/type/${sessionType}`);
     } catch (error) {
       console.error('Error fetching chat sessions:', error);
       return [];
@@ -735,9 +744,12 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const getOrCreateChatSession = async (projectId: string): Promise<ChatSession> => {
+  const getOrCreateChatSession = async (
+    projectId: string,
+    sessionType: string = 'coreagent'
+  ): Promise<ChatSession> => {
     try {
-      return await apiClient.post(`/api/chat/sessions`, { projectId });
+      return await apiClient.post(`/api/chat/sessions`, { projectId, sessionType });
     } catch (error) {
       console.error('Error getting/creating chat session:', error);
       throw error;
@@ -753,6 +765,9 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       username: string;
       email?: string;
       avatarUrl?: string;
+      name?: string;
+      accessToken?: string;
+      refreshToken?: string;
     }
   ): Promise<BioUser> => {
     try {
