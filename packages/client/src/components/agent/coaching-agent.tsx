@@ -1053,7 +1053,11 @@ export function CoachingAgent() {
                 I'm your personal BioDAO coach. I'll help guide you through the levels and provide
                 personalized feedback on your progress.
               </p>
-              <Button onClick={() => sendMessage("Hi, I'd like some advice on my project!")}>
+              <Button
+                onClick={() =>
+                  sendMessage('What is the best way to implement the Guardian framework?')
+                }
+              >
                 Start Conversation
               </Button>
             </div>
