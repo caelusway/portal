@@ -210,7 +210,7 @@ const typingAnimationCSS = `
   }
 `;
 
-// Update MemoizedMessageContent to accept toast as a prop
+// Update MemoizedMessageContent component to match styling from coaching-agent.tsx
 const MemoizedMessageContent = React.memo(
   ({
     message,
@@ -255,7 +255,7 @@ const MemoizedMessageContent = React.memo(
 
     // Markdown component to render with consistent styling
     const MarkdownContent = ({ content }: { content: string }) => (
-      <div className="markdown-content">
+      <div className="markdown-content break-words">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={[rehypeRaw]}
@@ -315,11 +315,13 @@ const MemoizedMessageContent = React.memo(
       </div>
     );
 
+    const isUserMessage = !message.isFromAgent;
+
     return (
-      <div className="flex flex-col w-full">
+      <div className={`flex flex-col ${isUserMessage ? 'min-w-[120px]' : 'w-full'}`}>
         <ChatBubbleMessage
-          {...(message.isFromAgent ? {} : { variant: 'sent' })}
-          className="overflow-hidden"
+          {...(isUserMessage ? { variant: 'sent' } : {})}
+          className={`overflow-hidden ${isUserMessage ? 'max-w-md' : ''}`}
         >
           <div className="py-2 break-words overflow-wrap">
             {/* For agent messages, always use Markdown but wrap with AIWriter for animation */}
@@ -1403,11 +1405,11 @@ export function CoreAgent() {
                         return (
                           <div
                             key={message.id}
-                            className={`flex flex-col gap-1 p-1 ${message.isFromAgent ? 'justify-start' : 'justify-end'}`}
+                            className={`flex flex-col gap-1 p-1 ${!message.isFromAgent ? 'items-end' : 'items-start'}`}
                           >
                             <ChatBubble
-                              variant={message.isFromAgent ? 'received' : 'sent'}
-                              className="flex flex-row items-end gap-2 max-w-full"
+                              variant={!message.isFromAgent ? 'sent' : 'received'}
+                              className={`flex flex-row items-end gap-2 ${!message.isFromAgent ? 'flex-row-reverse' : ''}`}
                             >
                               {message.isFromAgent && (
                                 <Avatar className="size-8 border rounded-full select-none mb-2 flex-shrink-0">
