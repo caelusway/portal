@@ -230,8 +230,8 @@ export function WelcomeForm() {
 
         // 2. Now create the project linked to this user
         const projectData = {
-          privyId: user.id, // Use Privy ID
-          wallet: embeddedWallet?.address,
+          //privyId: user.id, // Use Privy ID
+          //wallet: embeddedWallet?.address,
           fullName: values.fullName,
           email: values.email || user.email?.address || '', // Prioritize form email, fallback to Privy
           referralSource: values.referralSource,
