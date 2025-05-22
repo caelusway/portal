@@ -64,6 +64,9 @@ export function WelcomeForm() {
     }
   `;
 
+  // Define localStorage key for form data
+  const FORM_DATA_STORAGE_KEY = 'bio-onboarding-form-data';
+
   // Get embedded wallet
   const embeddedWallet = wallets?.find(
     (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
@@ -104,6 +107,37 @@ export function WelcomeForm() {
     reValidateMode: 'onBlur',
     shouldFocusError: true,
   });
+
+  // Load saved form data from localStorage on initial render
+  useEffect(() => {
+    try {
+      const savedFormData = localStorage.getItem(FORM_DATA_STORAGE_KEY);
+      if (savedFormData) {
+        const parsedData = JSON.parse(savedFormData) as WelcomeFormValues;
+        // Reset form with saved values
+        form.reset(parsedData);
+        console.log('Loaded saved form data from localStorage');
+      }
+    } catch (error) {
+      console.error('Error loading saved form data:', error);
+    }
+  }, [form]);
+
+  // Save form data to localStorage when fields change
+  useEffect(() => {
+    const subscription = form.watch((formValues) => {
+      // Only save if there are actual values (not just initial empty state)
+      if (formValues && Object.values(formValues).some((value) => value !== '')) {
+        try {
+          localStorage.setItem(FORM_DATA_STORAGE_KEY, JSON.stringify(formValues));
+        } catch (error) {
+          console.error('Error saving form data to localStorage:', error);
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   // Track when fields are touched
   useEffect(() => {
@@ -314,6 +348,9 @@ export function WelcomeForm() {
 
           // 4. Save to local context
           submitForm(values);
+
+          // Clear saved form data as we've successfully submitted
+          clearSavedFormData();
 
           // 6. Navigate to chat
           navigate(`/chat`);
@@ -538,6 +575,15 @@ export function WelcomeForm() {
       privyAuthenticated: privy.authenticated,
     });
   }, [isAuthenticated, user, privy.authenticated]);
+
+  // Clear saved form data when navigation is successful
+  const clearSavedFormData = () => {
+    try {
+      localStorage.removeItem(FORM_DATA_STORAGE_KEY);
+    } catch (error) {
+      console.error('Error clearing saved form data:', error);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-hidden">
