@@ -214,24 +214,43 @@ export function WelcomeForm() {
         console.log('Submitting form with Privy user:', user);
 
         // 1. First create or get the BioUser
-        let bioUser = await getUserByPrivyId(user.id);
+        let bioUser = null;
+        try {
+          bioUser = await getUserByPrivyId(user.id);
+        } catch (error) {
+          console.log('Error fetching user by Privy ID, will create new user:', error);
+          // Continue with user creation
+        }
 
         if (!bioUser) {
-          const userData = {
-            privyId: user.id,
-            wallet: embeddedWallet?.address || null,
-            email: values.email || user.email?.address || null,
-            fullName: values.fullName || null,
-          };
+          try {
+            const userData = {
+              privyId: user.id,
+              wallet: embeddedWallet?.address || null,
+              email: values.email || user.email?.address || null,
+              fullName: values.fullName || null,
+            };
 
-          bioUser = await createUser(userData);
-          console.log('BioUser created:', bioUser);
+            console.log('Creating new BioUser with data:', userData);
+            bioUser = await createUser(userData);
+            console.log('BioUser created:', bioUser);
+          } catch (error) {
+            console.error('Error creating BioUser:', error);
+            toast({
+              title: 'User Creation Error',
+              description: 'Could not create user profile. Please try again.',
+              variant: 'destructive',
+              duration: 5000,
+            });
+            setIsSubmitting(false);
+            return; // Stop execution but keep form data
+          }
         }
 
         // 2. Now create the project linked to this user
         const projectData = {
-          //privyId: user.id, // Use Privy ID
-          //wallet: embeddedWallet?.address,
+          privyId: user.id, // Include Privy ID as required by the API
+          wallet: embeddedWallet?.address || null, // Include wallet if available
           fullName: values.fullName,
           email: values.email || user.email?.address || '', // Prioritize form email, fallback to Privy
           referralSource: values.referralSource,
@@ -248,6 +267,9 @@ export function WelcomeForm() {
 
         try {
           // 2. Create/Update the project using the database context
+          console.log('Creating project with data:', projectData);
+          console.log('User ID for project creation:', bioUser.id);
+
           const project = await createProject(projectData, bioUser.id);
           console.log('Project created/updated via database context:', project);
 
@@ -296,15 +318,15 @@ export function WelcomeForm() {
           // 6. Navigate to chat
           navigate(`/chat`);
         } catch (error: any) {
-          console.error('Error submitting form:', error);
+          console.error('Error creating project:', error);
           toast({
-            title: 'Error',
-            description: error.message || 'An unknown error occurred',
+            title: 'Project Creation Error',
+            description: error.message || 'Could not create your project. Please try again.',
             variant: 'destructive',
             duration: 5000,
           });
-        } finally {
           setIsSubmitting(false);
+          return; // Stop execution but keep form data
         }
       } else {
         toast({
@@ -324,6 +346,7 @@ export function WelcomeForm() {
         duration: 5000,
       });
       setIsSubmitting(false);
+      // Don't reset form on error
     }
   };
 

@@ -130,19 +130,33 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
     setIsLoading(true);
     try {
       // First, ensure user exists or create them
-      let bioUser = await getUserByPrivyId(privyUser.id);
+      let bioUser = null;
+      try {
+        bioUser = await getUserByPrivyId(privyUser.id);
+      } catch (error) {
+        console.log('Error fetching user by Privy ID, will create new user:', error);
+        // Continue with user creation
+      }
 
       if (!bioUser) {
-        // Create the user first
-        const userData = {
-          privyId: privyUser.id,
-          wallet: privyUser.wallet?.address || null,
-          email: data.email || privyUser.email?.address || null,
-          fullName: data.fullName,
-        };
+        try {
+          // Create the user first
+          const userData = {
+            privyId: privyUser.id,
+            wallet: privyUser.wallet?.address || null,
+            email: data.email || privyUser.email?.address || null,
+            fullName: data.fullName,
+          };
 
-        bioUser = await createUser(userData);
-        console.log('WelcomeFormProvider: Created new user:', bioUser);
+          console.log('WelcomeFormProvider: Creating new user with data:', userData);
+          bioUser = await createUser(userData);
+          console.log('WelcomeFormProvider: Created new user:', bioUser);
+        } catch (createError) {
+          console.error('WelcomeFormProvider: Failed to create user:', createError);
+          throw new Error(
+            `Failed to create user profile: ${createError instanceof Error ? createError.message : 'Unknown error'}`
+          );
+        }
       }
 
       // Prepare project data
@@ -164,18 +178,34 @@ export function WelcomeFormProvider({ children }: { children: React.ReactNode })
       };
 
       // Check if project already exists
-      const existingProject = await getProjectByPrivyId(privyUser.id);
+      let existingProject = null;
+      try {
+        existingProject = await getProjectByPrivyId(privyUser.id);
+      } catch (error) {
+        console.log('Error checking for existing project, will create new project:', error);
+        // Continue with project creation
+      }
 
       // Either create new project or update existing one
       let savedProject;
-      if (existingProject) {
-        savedProject = await updateProject(existingProject.id, projectData, bioUser.id);
-        console.log('WelcomeFormProvider: Updated existing project:', savedProject);
-      } else {
-        savedProject = await createProject(projectData, bioUser.id);
-        console.log('WelcomeFormProvider: Created new project:', savedProject);
+      try {
+        if (existingProject) {
+          console.log('WelcomeFormProvider: Updating existing project:', existingProject.id);
+          savedProject = await updateProject(existingProject.id, projectData, bioUser.id);
+          console.log('WelcomeFormProvider: Updated existing project:', savedProject);
+        } else {
+          console.log('WelcomeFormProvider: Creating new project with user ID:', bioUser.id);
+          savedProject = await createProject(projectData, bioUser.id);
+          console.log('WelcomeFormProvider: Created new project:', savedProject);
+        }
+      } catch (projectError) {
+        console.error('WelcomeFormProvider: Failed to save project:', projectError);
+        throw new Error(
+          `Failed to save project: ${projectError instanceof Error ? projectError.message : 'Unknown error'}`
+        );
       }
 
+      // Only update state if everything succeeded
       setFormData(data); // Update local state with submitted data
       setIsFormSubmitted(true);
     } catch (error) {
