@@ -75,7 +75,7 @@ export default function Home() {
 
         // If profile is complete, redirect to dashboard
         if (profileComplete) {
-          navigate('/dashboard');
+          navigate('/chat');
         }
       } catch (error) {
         console.error('Error checking user profile:', error);
