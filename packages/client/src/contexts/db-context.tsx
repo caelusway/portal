@@ -146,6 +146,7 @@ interface DatabaseContextType {
   getUserById: (id: string) => Promise<BioUser | null>;
   getUserByPrivyId: (privyId: string) => Promise<BioUser | null>;
   getUserByWallet: (wallet: string) => Promise<BioUser | null>;
+  getUserByEmail: (email: string) => Promise<BioUser | null>;
   createUser: (userData: Partial<BioUser>) => Promise<BioUser>;
   updateUser: (id: string, userData: Partial<BioUser>) => Promise<BioUser>;
 
@@ -224,6 +225,7 @@ const DatabaseContext = createContext<DatabaseContextType>({
   getUserById: async () => null,
   getUserByPrivyId: async () => null,
   getUserByWallet: async () => null,
+  getUserByEmail: async () => null,
   createUser: async () => ({
     id: '',
     privyId: '',
@@ -447,6 +449,15 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return await apiClient.get(`/api/users/wallet/${wallet}`);
     } catch (error) {
       console.error('Error fetching user by wallet:', error);
+      return null;
+    }
+  };
+
+  const getUserByEmail = async (email: string): Promise<BioUser | null> => {
+    try {
+      return await apiClient.get(`/api/users/email/${email}`);
+    } catch (error) {
+      console.error('Error fetching user by email:', error);
       return null;
     }
   };
@@ -783,6 +794,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     getUserById,
     getUserByPrivyId,
     getUserByWallet,
+    getUserByEmail,
     createUser,
     updateUser,
     updateUserSocialConnections,

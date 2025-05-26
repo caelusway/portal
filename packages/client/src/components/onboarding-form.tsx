@@ -30,11 +30,14 @@ export function WelcomeForm() {
   const [activeTab, setActiveTab] = useState<string>('form'); // "form" or "nft"
   const [fieldSaving, setFieldSaving] = useState<Record<string, boolean>>({});
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  const [emailValidationState, setEmailValidationState] = useState<{
+    [email: string]: 'checking' | 'available' | 'taken' | 'error';
+  }>({});
   const { isAuthenticated, login, user } = useAuth();
   const { submitForm } = useWelcomeForm();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { createUser, getUserByPrivyId, createProject } = useDatabase();
+  const { createUser, getUserByPrivyId, createProject, getUserByEmail } = useDatabase();
   const { wallets } = useWallets();
   const privy = usePrivy();
 
@@ -64,8 +67,9 @@ export function WelcomeForm() {
     }
   `;
 
-  // Define localStorage key for form data
+  // Define localStorage keys for form data and state
   const FORM_DATA_STORAGE_KEY = 'bio-onboarding-form-data';
+  const FORM_STATE_STORAGE_KEY = 'bio-onboarding-form-state';
 
   // Get embedded wallet
   const embeddedWallet = wallets?.find(
@@ -108,15 +112,34 @@ export function WelcomeForm() {
     shouldFocusError: true,
   });
 
-  // Load saved form data from localStorage on initial render
+  // Load saved form data and state from localStorage on initial render
   useEffect(() => {
     try {
+      // Load form data
       const savedFormData = localStorage.getItem(FORM_DATA_STORAGE_KEY);
       if (savedFormData) {
         const parsedData = JSON.parse(savedFormData) as WelcomeFormValues;
-        // Reset form with saved values
-        form.reset(parsedData);
-        console.log('Loaded saved form data from localStorage');
+        // Check if the data is not just empty strings
+        const hasActualData = Object.values(parsedData).some(
+          (value) => value && value.trim() !== ''
+        );
+        if (hasActualData) {
+          form.reset(parsedData);
+          console.log('Loaded saved form data from localStorage');
+        }
+      }
+
+      // Load form state (current page, touched fields)
+      const savedFormState = localStorage.getItem(FORM_STATE_STORAGE_KEY);
+      if (savedFormState) {
+        const parsedState = JSON.parse(savedFormState);
+        if (parsedState.currentPage !== undefined && parsedState.currentPage >= 0) {
+          setCurrentPage(parsedState.currentPage);
+        }
+        if (parsedState.touchedFields) {
+          setTouchedFields(parsedState.touchedFields);
+        }
+        console.log('Loaded saved form state from localStorage');
       }
     } catch (error) {
       console.error('Error loading saved form data:', error);
@@ -139,6 +162,19 @@ export function WelcomeForm() {
     return () => subscription.unsubscribe();
   }, [form]);
 
+  // Save current page and touched fields to localStorage when they change
+  useEffect(() => {
+    try {
+      const formState = {
+        currentPage,
+        touchedFields,
+      };
+      localStorage.setItem(FORM_STATE_STORAGE_KEY, JSON.stringify(formState));
+    } catch (error) {
+      console.error('Error saving form state to localStorage:', error);
+    }
+  }, [currentPage, touchedFields]);
+
   // Track when fields are touched
   useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
@@ -151,24 +187,37 @@ export function WelcomeForm() {
     return () => subscription.unsubscribe();
   }, [form]);
 
-  // Reset touched state for fields when changing pages
+  // Real-time validation for step 3 (final step) - safe implementation
   useEffect(() => {
-    // Don't reset touch state on initial render
-    if (currentPage === 0) return;
+    // Only apply real-time validation on the final step
+    if (currentPage !== formPages.length - 1) return;
 
-    // Only mark fields as untouched for the current page
-    const currentPageFieldIds = formPages[currentPage].fields.map((f) => f.id);
-    const updatedTouchedFields = { ...touchedFields };
+    // Track timeout IDs to cleanup properly
+    const timeouts: NodeJS.Timeout[] = [];
 
-    currentPageFieldIds.forEach((fieldId) => {
-      // Only if this is a new page visit, don't reset if user goes back
-      if (!(fieldId in updatedTouchedFields)) {
-        updatedTouchedFields[fieldId] = false;
+    const subscription = form.watch((value, { name, type }) => {
+      if (name && type === 'change') {
+        // Mark field as touched immediately for step 3
+        setTouchedFields((prev) => ({ ...prev, [name]: true }));
+
+        // Clear previous timeout for this field
+        timeouts.forEach((timeout) => clearTimeout(timeout));
+
+        // Debounced validation - trigger after user stops typing
+        const timeoutId = setTimeout(() => {
+          form.trigger(name as keyof WelcomeFormValues);
+        }, 300);
+
+        timeouts.push(timeoutId);
       }
     });
 
-    setTouchedFields(updatedTouchedFields);
-  }, [currentPage]);
+    return () => {
+      subscription.unsubscribe();
+      // Clear all timeouts on cleanup
+      timeouts.forEach((timeout) => clearTimeout(timeout));
+    };
+  }, [form, currentPage, formPages.length]);
 
   // Add autosave functionality when fields change
   useEffect(() => {
@@ -189,16 +238,115 @@ export function WelcomeForm() {
     return () => subscription.unsubscribe();
   }, [form]);
 
-  const handleFormSubmit = form.handleSubmit(async (values) => {
-    // Mark all fields on the current page as touched
-    const allFields = formPages.flatMap((page) => page.fields);
+  // Email validation function with debouncing
+  const validateEmailUniqueness = async (email: string) => {
+    if (!email || !email.includes('@')) return;
+
+    // Skip validation if it's the current user's email
+    if (user?.email?.address === email) return;
+
+    setEmailValidationState((prev) => ({ ...prev, [email]: 'checking' }));
+
+    try {
+      const existingUser = await getUserByEmail(email);
+
+      if (existingUser) {
+        setEmailValidationState((prev) => ({ ...prev, [email]: 'taken' }));
+        // Set custom error on the email field
+        form.setError('email', {
+          type: 'manual',
+          message: 'This email is already registered. Please use a different email.',
+        });
+      } else {
+        setEmailValidationState((prev) => ({ ...prev, [email]: 'available' }));
+        // Clear any previous email errors
+        if (form.formState.errors.email?.message?.includes('already registered')) {
+          form.clearErrors('email');
+        }
+      }
+    } catch (error) {
+      console.error('Error validating email:', error);
+      setEmailValidationState((prev) => ({ ...prev, [email]: 'error' }));
+    }
+  };
+
+  // Track email field changes for validation
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    const subscription = form.watch((value, { name, type }) => {
+      if (name === 'email' && type === 'change') {
+        const emailValue = value.email as string;
+
+        // Clear previous timeout
+        if (timeoutId) clearTimeout(timeoutId);
+
+        // Debounce email validation (wait 1 second after user stops typing)
+        timeoutId = setTimeout(() => {
+          if (emailValue && emailValue.includes('@')) {
+            validateEmailUniqueness(emailValue);
+          }
+        }, 1000);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [form, user?.email?.address]);
+
+  // Reset touched state for fields when changing pages
+  useEffect(() => {
+    // Don't reset touch state on initial render
+    if (currentPage === 0) return;
+
+    // Only mark fields as untouched for the current page
+    const currentPageFieldIds = formPages[currentPage].fields.map((f) => f.id);
     const updatedTouchedFields = { ...touchedFields };
-    allFields.forEach((field) => {
+
+    currentPageFieldIds.forEach((fieldId) => {
+      // Only if this is a new page visit, don't reset if user goes back
+      if (!(fieldId in updatedTouchedFields)) {
+        updatedTouchedFields[fieldId] = false;
+      }
+    });
+
+    setTouchedFields(updatedTouchedFields);
+  }, [currentPage]);
+
+  const handleFormSubmit = form.handleSubmit(async (values) => {
+    // Mark all fields on the current page as touched (not all pages)
+    const currentFields = formPages[currentPage].fields;
+    const updatedTouchedFields = { ...touchedFields };
+    currentFields.forEach((field) => {
       updatedTouchedFields[field.id] = true;
     });
     setTouchedFields(updatedTouchedFields);
 
-    // Proceed with direct submission
+    // Force trigger validation for current page fields
+    const fieldsToValidate = currentFields.map((field) => field.id);
+    const isValid = await form.trigger(fieldsToValidate);
+
+    if (!isValid) {
+      // Find the first invalid field and focus it
+      const firstInvalidField = currentFields.find((field) => form.getFieldState(field.id).invalid);
+      if (firstInvalidField) {
+        form.setFocus(firstInvalidField.id);
+      }
+      return; // Don't proceed if validation fails
+    }
+
+    // Save form data before submission to prevent loss
+    try {
+      localStorage.setItem(FORM_DATA_STORAGE_KEY, JSON.stringify(values));
+      const formState = { currentPage, touchedFields: updatedTouchedFields };
+      localStorage.setItem(FORM_STATE_STORAGE_KEY, JSON.stringify(formState));
+    } catch (error) {
+      console.error('Error saving form state before submission:', error);
+    }
+
+    // Proceed with submission only if validation passes
     await handleSubmit(values);
   });
 
@@ -268,17 +416,30 @@ export function WelcomeForm() {
             console.log('Creating new BioUser with data:', userData);
             bioUser = await createUser(userData);
             console.log('BioUser created:', bioUser);
-          } catch (error) {
+          } catch (error: any) {
             console.error('Error creating BioUser:', error);
             toast({
               title: 'User Creation Error',
-              description: 'Could not create user profile. Please try again.',
+              description: `${error?.message || 'Could not create user profile'}. Please try again. Your form data has been saved.`,
               variant: 'destructive',
               duration: 5000,
             });
             setIsSubmitting(false);
             return; // Stop execution but keep form data
           }
+        }
+
+        // Ensure bioUser exists before proceeding
+        if (!bioUser) {
+          toast({
+            title: 'User Creation Error',
+            description:
+              'Could not create or find user profile. Please try again. Your form data has been saved.',
+            variant: 'destructive',
+            duration: 5000,
+          });
+          setIsSubmitting(false);
+          return;
         }
 
         // 2. Now create the project linked to this user
@@ -358,7 +519,7 @@ export function WelcomeForm() {
           console.error('Error creating project:', error);
           toast({
             title: 'Project Creation Error',
-            description: error.message || 'Could not create your project. Please try again.',
+            description: `${error.message || 'Could not create your project'}. Please try again. Your form data has been saved.`,
             variant: 'destructive',
             duration: 5000,
           });
@@ -378,12 +539,12 @@ export function WelcomeForm() {
       console.error('Error processing form:', error);
       toast({
         title: 'Error',
-        description: error.message || 'An unknown error occurred',
+        description: `${error.message || 'An unknown error occurred'}. Your form data has been saved.`,
         variant: 'destructive',
         duration: 5000,
       });
       setIsSubmitting(false);
-      // Don't reset form on error
+      // Don't reset form on error - data is preserved in localStorage
     }
   };
 
@@ -477,92 +638,214 @@ export function WelcomeForm() {
 
     return (
       <div className="space-y-6">
-        {currentFields.map((field) => (
-          <div key={field.id} className="space-y-2">
-            <div className="flex justify-between items-start">
-              <div className="space-y-1">
-                <Label htmlFor={field.id}>{field.label}</Label>
-                {field.description && (
-                  <p className="text-sm text-muted-foreground">{field.description}</p>
-                )}
+        {currentFields.map((field) => {
+          const currentValue = form.watch(field.id) as string;
+          const emailStatus =
+            field.id === 'email' && currentValue
+              ? emailValidationState[currentValue] || null
+              : null;
+
+          return (
+            <div key={field.id} className="space-y-2">
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <Label htmlFor={field.id}>{field.label}</Label>
+                  {field.description && (
+                    <p className="text-sm text-muted-foreground">{field.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Email validation status indicator */}
+                  {field.id === 'email' && currentValue && emailStatus && (
+                    <div className="flex items-center text-xs">
+                      {emailStatus === 'checking' && (
+                        <span className="text-blue-500 flex items-center">
+                          <svg
+                            className="w-3 h-3 mr-1 animate-spin"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          Checking...
+                        </span>
+                      )}
+                      {emailStatus === 'available' && (
+                        <span className="text-green-500 flex items-center">
+                          <svg
+                            className="w-3 h-3 mr-1"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M5 13l4 4L19 7"
+                            ></path>
+                          </svg>
+                          Available
+                        </span>
+                      )}
+                      {emailStatus === 'taken' && (
+                        <span className="text-red-500 flex items-center">
+                          <svg
+                            className="w-3 h-3 mr-1"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            ></path>
+                          </svg>
+                          Taken
+                        </span>
+                      )}
+                      {emailStatus === 'error' && (
+                        <span className="text-yellow-500 flex items-center">
+                          <svg
+                            className="w-3 h-3 mr-1"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.08 16.5c-.77.833.192 2.5 1.732 2.5z"
+                            ></path>
+                          </svg>
+                          Error
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {fieldSaving[field.id] && (
+                    <span className="text-xs text-bio-accent flex items-center animate-fade-in-out">
+                      <svg
+                        className="w-3 h-3 mr-1 animate-spin"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Saving...
+                    </span>
+                  )}
+                </div>
               </div>
-              {fieldSaving[field.id] && (
-                <span className="text-xs text-bio-accent flex items-center animate-fade-in-out ml-2">
-                  <svg
-                    className="w-3 h-3 mr-1 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Saving...
-                </span>
+              {field.type === 'textarea' ? (
+                <Textarea
+                  id={field.id}
+                  placeholder={field.placeholder}
+                  className={`min-h-24 focus-visible:ring-bio-accent/50 ${
+                    touchedFields[field.id] && form.formState.errors[field.id]
+                      ? 'border-red-500 animate-pulse-once'
+                      : field.id === 'email' && emailStatus === 'available'
+                        ? 'border-green-500'
+                        : field.id === 'email' && emailStatus === 'taken'
+                          ? 'border-red-500'
+                          : ''
+                  }`}
+                  {...form.register(field.id, {
+                    onBlur: () => setTouchedFields((prev) => ({ ...prev, [field.id]: true })),
+                  })}
+                />
+              ) : (
+                <Input
+                  id={field.id}
+                  type={field.type}
+                  placeholder={field.placeholder}
+                  className={`focus-visible:ring-bio-accent/50 ${
+                    touchedFields[field.id] && form.formState.errors[field.id]
+                      ? 'border-red-500 animate-pulse-once'
+                      : field.id === 'email' && emailStatus === 'available'
+                        ? 'border-green-500'
+                        : field.id === 'email' && emailStatus === 'taken'
+                          ? 'border-red-500'
+                          : ''
+                  }`}
+                  {...form.register(field.id, {
+                    onBlur: () => setTouchedFields((prev) => ({ ...prev, [field.id]: true })),
+                  })}
+                />
               )}
+              {touchedFields[field.id] && form.formState.errors[field.id] && (
+                <p className="text-sm text-red-500 mt-1 flex items-center">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="mr-1"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                  </svg>
+                  {form.formState.errors[field.id]?.message}
+                </p>
+              )}
+              {/* Success message for available email */}
+              {field.id === 'email' &&
+                emailStatus === 'available' &&
+                !form.formState.errors[field.id] && (
+                  <p className="text-sm text-green-500 mt-1 flex items-center">
+                    <svg
+                      className="w-4 h-4 mr-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M5 13l4 4L19 7"
+                      ></path>
+                    </svg>
+                    Email is available
+                  </p>
+                )}
             </div>
-            {field.type === 'textarea' ? (
-              <Textarea
-                id={field.id}
-                placeholder={field.placeholder}
-                className={`min-h-24 focus-visible:ring-bio-accent/50 ${
-                  touchedFields[field.id] && form.formState.errors[field.id]
-                    ? 'border-red-500 animate-pulse-once'
-                    : ''
-                }`}
-                {...form.register(field.id, {
-                  onBlur: () => setTouchedFields((prev) => ({ ...prev, [field.id]: true })),
-                })}
-              />
-            ) : (
-              <Input
-                id={field.id}
-                type={field.type}
-                placeholder={field.placeholder}
-                className={`focus-visible:ring-bio-accent/50 ${
-                  touchedFields[field.id] && form.formState.errors[field.id]
-                    ? 'border-red-500 animate-pulse-once'
-                    : ''
-                }`}
-                {...form.register(field.id, {
-                  onBlur: () => setTouchedFields((prev) => ({ ...prev, [field.id]: true })),
-                })}
-              />
-            )}
-            {touchedFields[field.id] && form.formState.errors[field.id] && (
-              <p className="text-sm text-red-500 mt-1 flex items-center">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="mr-1"
-                >
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="12"></line>
-                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                </svg>
-                {form.formState.errors[field.id]?.message}
-              </p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -576,10 +859,11 @@ export function WelcomeForm() {
     });
   }, [isAuthenticated, user, privy.authenticated]);
 
-  // Clear saved form data when navigation is successful
+  // Clear saved form data and state when navigation is successful
   const clearSavedFormData = () => {
     try {
       localStorage.removeItem(FORM_DATA_STORAGE_KEY);
+      localStorage.removeItem(FORM_STATE_STORAGE_KEY);
     } catch (error) {
       console.error('Error clearing saved form data:', error);
     }
