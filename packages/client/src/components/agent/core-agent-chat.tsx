@@ -27,36 +27,14 @@ import { CHAT_SOURCE } from '@/constants';
 import clientLogger from '@/lib/logger';
 import { useAuth } from '@/lib/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import {
-  mintNftToUser,
-  ZORA_CONTRACT_ADDRESS,
-  IDEA_NFT_ID,
-  VISION_NFT_ID,
-  publicClient,
-} from '@/lib/nft-actions';
-import { baseSepolia } from 'viem/chains';
-import type { Hex } from 'viem';
-import { useUserLevelContext } from '@/lib/user-level.tsx';
-import { updateRequirementProgress } from '@/lib/api/user-levels';
-import { readContract } from 'viem/actions';
 import { useWallets, ConnectedWallet } from '@privy-io/react-auth';
 import { useUserData } from '../../hooks/use-user-data';
 import { useUserLevel } from '../../hooks/use-user-level';
+import { useProject } from '../../hooks/use-project-data';
+import { useDatabase } from '../../contexts/db-context';
 
-// NOTE: This component requires UserLevelProvider to be present in the React tree.
-
-const LEVELS = {
-  1: { label: 'App Started', requirements: ['Wallet connected'] },
-  2: { label: 'Science NFTs Minted', requirements: ['Minted Idea NFT', 'Minted Vision NFT'] },
-  3: {
-    label: 'Community Initiated',
-    requirements: ['Share Invite Link', 'Invite Portal Bot', '4 Discord members'],
-  },
-  4: {
-    label: 'Community Growth + Proof',
-    requirements: ['10 Discord members', '25 papers shared', '100 messages sent'],
-  },
-};
+// Remove the old LEVELS constant and NFT-related imports
+// The plugin-portal will handle all level logic and NFT minting
 
 interface IAttachment {
   url: string;
@@ -166,20 +144,6 @@ function MessageContent({
   );
 }
 
-// Minimal ABI for ERC1155 balanceOf
-const erc1155BalanceOfAbi = [
-  {
-    inputs: [
-      { internalType: 'address', name: 'account', type: 'address' },
-      { internalType: 'uint256', name: 'id', type: 'uint256' },
-    ],
-    name: 'balanceOf',
-    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const;
-
 export function CoreAgentChat({
   agentId,
   worldId,
@@ -191,14 +155,13 @@ export function CoreAgentChat({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [input, setInput] = useState('');
   const [messageProcessing, setMessageProcessing] = useState<boolean>(false);
-  const [isMinting, setIsMinting] = useState<boolean>(false);
-  const [mintingAttempted, setMintingAttempted] = useState<boolean>(false);
   const { user } = useAuth();
   const { toast } = useToast();
-  const { level, isLoading: levelLoading, refetchLevel, incrementLevel } = useUserLevel();
+  const { level, isLoading: levelLoading, refetchLevel } = useUserLevel();
   const { wallets } = useWallets();
+  const { project } = useDatabase();
 
-  // Loader: Wait for embedded wallet to be loaded
+  // Get embedded wallet for user identification
   const embeddedWallet = wallets.find(
     (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
   );
@@ -241,7 +204,6 @@ export function CoreAgentChat({
   });
 
   const scrollRefId = useRef(`scroll-${Math.random().toString(36).substring(2, 9)}`).current;
-
   const prevMessageCountRef = useRef(0);
 
   const safeScrollToBottom = useCallback(() => {
@@ -299,129 +261,45 @@ export function CoreAgentChat({
     [agentId, agentData?.name, roomId, userId, queryClient, worldId]
   );
 
-  const handleMintingSuccess = useCallback(async () => {
-    await refetchLevel();
-    try {
-      const ideaResult = await updateRequirementProgress(user.id, 1, 'mint_idea_nft', true);
-      const visionResult = await updateRequirementProgress(user.id, 1, 'mint_vision_nft', true);
-      if (!ideaResult.success || !visionResult.success) {
-        toast({
-          title: 'Progress Update Issue',
-          description: 'Could not update all progress milestones.',
-          variant: 'destructive',
-        });
-      }
-    } catch (progressError) {
-      toast({
-        title: 'Progress Update Error',
-        description: 'An unexpected error occurred while updating progress.',
-        variant: 'destructive',
-      });
-    }
-  }, [refetchLevel, user.id, toast]);
-
-  const triggerMintingProcess = useCallback(async () => {
-    console.log('[triggerMintingProcess] Starting NFT mint process...', { level });
-    if (level !== 1) {
-      console.warn(`[triggerMintingProcess] Aborting: User level is ${level}, not 1.`);
-      return;
-    }
-    if (isMinting) {
-      console.warn('[triggerMintingProcess] Aborting: Minting already in progress.');
-      return;
-    }
-    const embeddedWallet = wallets.find(
-      (wallet: ConnectedWallet) => wallet.walletClientType === 'privy'
-    );
-    if (!embeddedWallet) {
-      toast({
-        title: 'Wallet Not Found',
-        description: 'No embedded wallet found.',
-        variant: 'destructive',
-      });
-      addAgentMessage('NFT mint failed: No embedded wallet found.');
-      return;
-    }
-    try {
-      const ideaBalance = await readContract(publicClient, {
-        address: ZORA_CONTRACT_ADDRESS,
-        abi: erc1155BalanceOfAbi,
-        functionName: 'balanceOf',
-        args: [embeddedWallet.address as Hex, IDEA_NFT_ID],
-      });
-      const visionBalance = await readContract(publicClient, {
-        address: ZORA_CONTRACT_ADDRESS,
-        abi: erc1155BalanceOfAbi,
-        functionName: 'balanceOf',
-        args: [embeddedWallet.address as Hex, VISION_NFT_ID],
-      });
-      if (ideaBalance > 0n && visionBalance > 0n) {
-        return;
-      }
-    } catch (balanceError) {
-      console.error('[triggerMintingProcess] Error checking NFT balances:', balanceError);
-      toast({
-        title: 'NFT Check Failed',
-        description: 'Could not verify your existing NFTs. Please try again.',
-        variant: 'destructive',
-      });
-      addAgentMessage('NFT mint failed: Could not verify your existing NFTs.');
-      return;
-    }
-    setIsMinting(true);
-    addAgentMessage('Minting your Idea and Vision NFTs now...');
-    try {
-      const ideaNftHash = await mintNftToUser(
-        embeddedWallet.address as Hex,
-        IDEA_NFT_ID,
-        1,
-        'Minting Idea NFT via BioDAO Portal'
-      );
-      await publicClient.waitForTransactionReceipt({ hash: ideaNftHash, timeout: 120_000 });
-      const visionNftHash = await mintNftToUser(
-        embeddedWallet.address as Hex,
-        VISION_NFT_ID,
-        1,
-        'Minting Vision NFT via BioDAO Portal'
-      );
-      await publicClient.waitForTransactionReceipt({ hash: visionNftHash, timeout: 120_000 });
-      toast({ title: 'NFTs Minted Successfully!', variant: 'default', duration: 5000 });
-      const nextLevelInfo = LEVELS[3];
-      const requirementsText = nextLevelInfo.requirements.join(', ');
-      addAgentMessage(`NFTs minted successfully! You are now Level 2: ${LEVELS[2].label}.
-Next step (Level 3): ${nextLevelInfo.label}.
-Requirements: ${requirementsText}.`);
-      await handleMintingSuccess();
-    } catch (error: any) {
-      const errorMsg = error.message || 'An unknown error occurred during NFT mint.';
-      toast({
-        title: 'NFT Mint Failed',
-        description: errorMsg,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsMinting(false);
-    }
-  }, [level, isMinting, wallets, toast, addAgentMessage, handleMintingSuccess]);
+  // Remove all manual NFT minting logic - the plugin will handle this automatically
 
   useEffect(() => {
-    if (!levelLoading && level === 1 && !isMinting && !mintingAttempted && user.id) {
-      setMintingAttempted(true);
-      triggerMintingProcess();
-    }
-  }, [levelLoading, level, isMinting, mintingAttempted, triggerMintingProcess, user.id]);
-
-  useEffect(() => {
-    socketIOManager.initialize(entityId, [agentId], { userId });
+    socketIOManager.initialize(entityId, [agentId], {
+      userId,
+      // Pass user context to the plugin
+      projectId: project.id, // Use user ID as project identifier
+      walletAddress: embeddedWallet?.address,
+    });
 
     const joinRoom = async () => {
       try {
-        await socketIOManager.joinRoom(roomId, { userId });
+        await socketIOManager.joinRoom(roomId, {
+          userId,
+          projectId: user.id,
+          walletAddress: embeddedWallet?.address,
+        });
         clientLogger.info(`[CoreAgentChat] Joined room ${roomId} with agent ${agentId}`);
 
+        // Send initial message or welcome message to trigger plugin actions
         if (initialMessage && messages.length === 0) {
-          socketIOManager.sendMessage(initialMessage, roomId, CHAT_SOURCE, { userId });
+          socketIOManager.sendMessage(initialMessage, roomId, CHAT_SOURCE, {
+            userId,
+            projectId: user.id,
+            walletAddress: embeddedWallet?.address,
+          });
           clientLogger.info(`[CoreAgentChat] Sent initial message: "${initialMessage}"`);
+        } else if (messages.length === 0) {
+          // Send a welcome message to trigger the plugin's onboarding flow
+          socketIOManager.sendMessage(
+            "Hello! I'm ready to start my BioDAO journey.",
+            roomId,
+            CHAT_SOURCE,
+            {
+              userId,
+              projectId: user.id,
+              walletAddress: embeddedWallet?.address,
+            }
+          );
         }
       } catch (error) {
         clientLogger.error(`[CoreAgentChat] Failed to join room ${roomId}:`, error);
@@ -475,6 +353,16 @@ Requirements: ${requirementsText}.`);
           return [...old, newMessage];
         }
       );
+
+      // Check if the message indicates level progression and refresh level data
+      if (
+        newMessage.name !== USER_NAME &&
+        (newMessage.text?.includes('Level') ||
+          newMessage.text?.includes('NFT') ||
+          newMessage.text?.includes('Discord'))
+      ) {
+        refetchLevel();
+      }
     };
 
     const handleMessageComplete = (data: any) => {
@@ -511,6 +399,9 @@ Requirements: ${requirementsText}.`);
     userId,
     initialMessage,
     messages.length,
+    user.id,
+    embeddedWallet?.address,
+    refetchLevel,
   ]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -523,7 +414,7 @@ Requirements: ${requirementsText}.`);
 
   const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!input || messageProcessing || isMinting) return;
+    if (!input || messageProcessing) return;
 
     const messageId = uuidv4();
     const userMessage: ContentWithUser = {
@@ -559,7 +450,12 @@ Requirements: ${requirementsText}.`);
       }
     );
 
-    socketIOManager.sendMessage(input, roomId, CHAT_SOURCE, { userId });
+    // Send message with context for the plugin
+    socketIOManager.sendMessage(input, roomId, CHAT_SOURCE, {
+      userId,
+      projectId: user.id,
+      walletAddress: embeddedWallet?.address,
+    });
     setMessageProcessing(true);
     setSelectedFile(null);
     setInput('');
@@ -708,9 +604,9 @@ Requirements: ${requirementsText}.`);
                 onKeyDown={handleKeyDown}
                 value={input}
                 onChange={({ target }) => setInput(target.value)}
-                placeholder={isMinting ? 'Minting in progress...' : 'Type your message here...'}
+                placeholder={messageProcessing ? 'Processing...' : 'Type your message here...'}
                 className="min-h-12 resize-none rounded-md bg-card border-0 p-3 shadow-none focus-visible:ring-0"
-                disabled={isMinting || messageProcessing}
+                disabled={messageProcessing}
               />
               <div className="flex items-center p-3 pt-0">
                 <Tooltip>
@@ -724,7 +620,7 @@ Requirements: ${requirementsText}.`);
                             fileInputRef.current.click();
                           }
                         }}
-                        disabled={isMinting || messageProcessing}
+                        disabled={messageProcessing}
                       >
                         <Paperclip className="size-4" />
                         <span className="sr-only">Attach file</span>
@@ -747,14 +643,13 @@ Requirements: ${requirementsText}.`);
                   onChange={(newInput: string) => setInput(newInput)}
                 />
                 <Button
-                  disabled={messageProcessing || isMinting}
+                  disabled={messageProcessing}
                   type="submit"
                   size="sm"
                   className="ml-auto gap-1.5 h-[30px]"
                 >
-                  {messageProcessing || isMinting ? (
+                  {messageProcessing ? (
                     <div className="flex gap-0.5 items-center justify-center">
-                      {isMinting && <Loader2 className="size-3.5 mr-1 animate-spin" />}
                       <span className="w-[4px] h-[4px] bg-gray-500 rounded-full animate-bounce [animation-delay:0s]" />
                       <span className="w-[4px] h-[4px] bg-gray-500 rounded-full animate-bounce [animation-delay:0.2s]" />
                       <span className="w-[4px] h-[4px] bg-gray-500 rounded-full animate-bounce [animation-delay:0.4s]" />

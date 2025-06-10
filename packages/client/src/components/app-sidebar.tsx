@@ -28,6 +28,7 @@ import {
   Users,
   Settings,
   Compass,
+  Brain,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
@@ -199,7 +200,28 @@ export function AppSidebar() {
                                 </div>
                               </div>
                             </div>
-                            <span className="text-base">My Profile</span>
+                            <span className="text-base">Profile</span>
+                          </div>
+                        </SidebarMenuButton>
+                      </NavLink>
+                    </SidebarMenuItem>
+
+                    {/* POL NFT Menu Item */}
+                    <SidebarMenuItem>
+                      <NavLink to="/pol-nft">
+                        <SidebarMenuButton
+                          isActive={location.pathname === '/pol-nft'}
+                          className="transition-colors px-4 my-2 h-full py-1 rounded-md"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 flex justify-center items-center">
+                              <div className="relative bg-purple-600 rounded-full w-full h-full">
+                                <div className="text-sm rounded-full h-full w-full flex justify-center items-center overflow-hidden">
+                                  <Brain className="w-5 h-5 text-white" />
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-base">POL NFTs</span>
                           </div>
                         </SidebarMenuButton>
                       </NavLink>

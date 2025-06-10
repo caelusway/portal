@@ -233,3 +233,287 @@ export default tseslint.config({
   },
 });
 ```
+
+## 🧬 What is Portal?
+
+Portal is an AI-powered platform designed to help scientists and researchers launch their own Decentralized Science (DeSci) communities called BioDAOs. Through a guided level onboarding process, Portal helps you build a credible scientific community with verified members, social presence, and clear governance structure.
+
+## 🤖 Meet CoreAgent
+
+CoreAgent is your personal AI assistant that guides you through every step of the BioDAO creation process. Unlike traditional platforms where you have to figure things out yourself, CoreAgent:
+
+- **Takes direct action** Instead of asking "Would you like me to...?", CoreAgent says "I'll do this now" and handles tasks for you
+- **Provides real-time guidance** Offers specific, actionable advice based on your current progress
+- **Tracks your metrics** Automatically monitors your Discord activity, Twitter engagement, and community growth
+- **Ensures integrity** All metrics are earned through real activity, not manual updates
+
+## 📊 The Level Guided Journey
+
+Portal guides you through a structured 7-level process to build your BioDAO. Each level builds on the last to ensure a strong foundation.
+
+---
+
+### 🎯 **Level 1: Science NFT Creation**
+
+> Goal: Establish your scientific identity on the blockchain
+
+- Mint your **Idea NFT** – A digital certificate of your project concept
+- Mint your **Vision NFT** – Represents your long-term scientific vision
+- Receive **custom AI-generated artwork** for each NFT
+
+These NFTs serve as timestamped proof of your scientific ideas and establish your authenticity in the DeSci ecosystem.
+
+CoreAgent mints your NFTs and generates images, no manual approval needed.
+
+---
+
+### 🗣️ **Level 2: Discord Setup**
+
+> Goal: Create your community hub and communication space
+
+- Create a **Discord server** for your community
+- Install **Portal's verification bot**
+- Grow to **4+ members**
+- Learn Discord best practices (optional resources included)
+
+1. **Create** your Discord and share the invite link with CoreAgent
+2. **Install** the verification bot using CoreAgent's provided link
+
+Discord is your primary community hub for collaboration and communication.
+
+Registers your server, helps install the bot, and tracks growth.
+
+---
+
+### 🌱 **Level 3: Community Growth**
+
+> Goal: Build an active, engaged scientific community
+
+- Grow to **10+ members**
+- Share **25+ scientific papers**
+- Generate **100+ messages** of discussion
+- Establish regular community activity
+
+**Growth strategies:**
+
+- Invite research colleagues
+- Share and explain recent studies
+- Create topic-specific channels
+- Encourage discussion around shared content
+
+Shows genuine scientific engagement — not just member count.
+
+Offers growth strategies, tracks metrics, and provides updates.
+
+---
+
+### 🐦 **Level 4: Social Foundation**
+
+> Goal: Establish your public scientific presence
+
+- Connect your **Twitter account**
+- Publish **3 introductory tweets** about your BioDAO
+- Share tweet URLs with CoreAgent for verification
+
+**Twitter strategy:**
+
+- Share your BioDAO's mission
+- Talk about the problems you're solving
+- Invite others to join
+- Use hashtags like **#DeSci**, **#BioDAO**
+
+Social visibility boosts credibility and attracts quality members.
+
+Guides account connection, suggests tweet content, and verifies URLs.
+
+---
+
+### 👥 **Level 5: Community Verification & Outreach**
+
+> Goal: Build a network of verified scientists and thought leaders
+
+- Recruit **10+ verified scientists or patients**
+- Host a **public Twitter Space**
+- Grow your reputation and scientific network
+
+**Verification process:**
+
+- Members DM credentials to the bot (papers, LinkedIn, background)
+- Patients can verify through advocacy or community roles
+
+**Twitter Space guidelines:**
+
+- Run a 15+ minute session
+- Topics: "Latest in [Your Field]", "Q&A with Founders"
+- Share the Space URL with CoreAgent
+
+Verified members increase trust and expand your reach.
+
+Explains verification, guides Twitter Space setup, and tracks counts.
+
+---
+
+### ✍️ **Level 6: Vision Articulation**
+
+> Goal: Articulate your long-term vision and expand public reach
+
+- Write an **800–1500 word visionary blogpost**
+- Convert it into a **Twitter thread (5–10 tweets)**
+- Share both with CoreAgent
+
+**Content guidelines:**
+
+- Describe your DAO in 5–10 years
+- Include mission, breakthroughs, and societal impact
+- Publish on Medium, Substack, Mirror, etc.
+
+**Twitter thread:**
+
+- Summarize blogpost in 5–10 tweets
+- Use relevant hashtags
+- Link to full blogpost
+
+Demonstrates thought leadership and communicates your long-term vision.
+
+Offers writing support and verifies your blogpost + thread.
+
+---
+
+### 🏆 **Level 7: Onboarding Completion (Final Level)**
+
+> Goal: Complete onboarding and prepare for ecosystem opportunities
+
+- Finalize all previous levels
+- Record a **3–5 minute welcome Loom video**
+- Share it in your Discord's welcome channel
+- Get recognized and introduced to the BioDAO ecosystem
+
+**Video content:**
+
+- Introduce your DAO to new members
+- Share your vision and how others can contribute
+- Share the video link with CoreAgent
+
+**Completion benefits:**
+
+- Gain access to **funding opportunities**
+- Connect with other **successful DeSci projects**
+- Receive **ongoing support** from the Bio team
+- Qualify for **grants and partnerships**
+
+Completion shows serious commitment and opens the door to high-level opportunities.
+
+Verifies your video and connects you to next-stage opportunities.
+
+---
+
+## 🧪 **Advanced Features**
+
+### 🔬 **Proof of Invention (POI) System**
+
+Beyond the standard onboarding, Portal offers advanced blockchain verification for your scientific work:
+
+**What is POI?**
+
+- Upload research documents, videos, lab notes, and data files
+- Generate cryptographic proofs using merkle tree technology
+- Mint blockchain-verified NFTs as permanent proof of your inventions
+- Integration with Molecule POI API for professional-grade verification
+
+**How it works:**
+
+1. **Upload Files**: Documents, videos, images, data files (up to 100MB total)
+2. **Generate Proof**: AI creates a merkle root and blockchain transaction data
+3. **Mint NFT**: Create a commemorative NFT with embedded verification data
+4. **Blockchain Record**: Optional submission to POI contract for complete verification
+
+**Supported Formats**: PDF, DOCX, MP4, PNG, JPG, XLSX, and more
+
+**Use Cases:**
+
+- Timestamp research breakthroughs
+- Prove prior art for patent applications
+- Create immutable research records
+- Establish invention priority
+
+---
+
+### 👥 **Team Collaboration System**
+
+Portal supports multi-member projects with built-in collaboration tools:
+
+**Project Invitations:**
+
+- Invite co-founders and team members via email
+- Role-based access control (Founder, Admin, Member)
+- Secure token-based invitation system
+- 7-day expiration for security
+
+**Team Management:**
+
+- Multiple users can collaborate on one BioDAO
+- Shared access to Discord stats and progress
+- Coordinated level progression
+- Joint ownership of project NFTs
+
+**How to invite team members:**
+
+1. Navigate to your project settings
+2. Enter teammate's email and select role
+3. CoreAgent sends secure invitation link
+4. Teammate joins via link and gets project access
+
+---
+
+## 🛡️ Platform Integrity Features
+
+### 🔄 **Automated Metrics Tracking**
+
+- **Discord stats** (members, messages, papers) tracked via the Discord bot
+- **No manual updates** – All progress must result from real community activity
+- **Real-time verification** – CoreAgent receives live updates as activity happens
+- **Anti-manipulation safeguards** – Technical systems detect and prevent artificial progress
+
+### ✅ **Quality Assurance**
+
+- **Scientist verification** requires real credentials: research papers, academic profiles, or patient advocacy work
+- **Twitter verification** only valid with actual tweets from connected accounts
+- **Discord engagement** must show meaningful scientific conversations
+- **Content checks** ensure blogposts and videos meet required quality standards
+
+### 🤖 **AI-Powered Guidance**
+
+- **Context-aware assistance** – CoreAgent understands your current level and goals
+- **Proactive suggestions** – Delivers specific, actionable strategies
+- **Progress monitoring** – Highlights achievements and flags areas needing attention
+- **24/7 availability** – Always accessible through the chat interface
+
+---
+
+## ⚙️ **Technical Infrastructure**
+
+### 🔗 **Blockchain Integration**
+
+- **Network**: Base Sepolia (Ethereum L2)
+- **Wallet**: Privy embedded wallets (no manual setup required)
+- **NFT Contracts**: Zora protocol for minting
+- **POI Integration**: Molecule Proof of Invention API
+
+### 🔌 **Developer Features**
+
+- **REST API**: Full programmatic access to platform features
+- **Webhook Support**: Real-time notifications for level progression
+- **Custom Integrations**: Connect your existing tools and workflows
+- **Open Source**: Core components available for community contribution
+
+---
+
+## 🚀 **Getting Started**
+
+1. **Connect Wallet**: Use any email address to create a gasless embedded wallet
+2. **Start Chat**: Begin conversation with CoreAgent about your research area
+3. **Follow Guidance**: Complete levels step-by-step with AI assistance
+4. **Grow Community**: Build your verified scientific network
+5. **Access Opportunities**: Unlock funding and partnership opportunities
+
+**Ready to launch your BioDAO? Start chatting with CoreAgent today!**

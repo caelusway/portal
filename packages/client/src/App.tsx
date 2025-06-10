@@ -32,6 +32,7 @@ import { RequireAuth } from './lib/require-auth';
 import AcceptInvite from './pages/accept-invite';
 import { Loader2 } from 'lucide-react';
 import { SettingsProvider } from './lib/settings-context';
+import POLNFTPage from './pages/pol-nft';
 
 // Create protected route components
 //const ProtectedDashboard = RequireOnboarding(DashboardLayout);
@@ -138,6 +139,14 @@ function AuthenticatedRoutes() {
         element={
           <RequireAuth>
             <SettingsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/pol-nft"
+        element={
+          <RequireAuth>
+            <POLNFTPage />
           </RequireAuth>
         }
       />

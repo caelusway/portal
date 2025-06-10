@@ -40,12 +40,23 @@
     "opusscript": "^0.1.1",
     "prism-media": "1.3.5",
     "resend": "^4.2.0",
-    "zod": "3.24.2"
+    "zod": "3.24.2",
+    "@prisma/client": "^5.22.0",
+    "pdf-parse": "^1.1.1",
+    "prisma": "^5.22.0",
+    "uuid": "^10.0.0",
+    "crypto": "^1.0.1",
+    "viem": "^2.21.0",
+    "@zoralabs/protocol-sdk": "^0.8.0",
+    "openai": "^4.67.0",
+    "mailgun.js": "^10.2.3",
+    "form-data": "^4.0.0"
   },
   "devDependencies": {
     "tsup": "8.4.0",
     "prettier": "3.5.3",
-    "vitest": "1.6.1"
+    "vitest": "1.6.1",
+    "@types/uuid": "^10.0.0"
   },
   "scripts": {
     "start": "npx @elizaos/cli start",
@@ -57,7 +68,11 @@
     "publish": "npx @elizaos/cli plugin publish",
     "format": "prettier --write ./src",
     "format:check": "prettier --check ./src",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
   },
   "publishConfig": {
     "access": "public"

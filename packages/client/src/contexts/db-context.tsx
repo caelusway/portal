@@ -140,6 +140,24 @@ export interface ChatMessage {
   actionSuccess?: boolean;
 }
 
+// Add POL-related interfaces
+export interface POLResult {
+  merkleRoot: string;
+  transactionData: {
+    to: string;
+    data: string;
+  };
+  files: Array<{
+    filename: string;
+    hash: string;
+    size: number;
+  }>;
+  metadata: {
+    timestamp: string;
+    totalFiles: number;
+  };
+}
+
 // Define the type for our database context
 interface DatabaseContextType {
   // User methods
@@ -218,6 +236,9 @@ interface DatabaseContextType {
       refreshToken?: string;
     }
   ) => Promise<BioUser>;
+
+  // POL methods
+  generatePOL: (files: File[]) => Promise<POLResult>;
 }
 
 // Create the context with default values
@@ -365,21 +386,36 @@ const DatabaseContext = createContext<DatabaseContextType>({
     createdAt: new Date(),
     updatedAt: new Date(),
   }),
+  generatePOL: async () => ({
+    merkleRoot: '',
+    transactionData: { to: '', data: '' },
+    files: [],
+    metadata: { timestamp: '', totalFiles: 0 },
+  }),
 });
 
 // API base URL from environment or default
 const API_URL = import.meta.env.VITE_PUBLIC_API_URL || 'http://localhost:3001';
 const API_KEY = import.meta.env.VITE_API_KEY || '';
 
-// Helper for authenticated API requests
+// Update the fetchWithAuth helper to handle FormData properly
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  const headers = {
-    ...options.headers,
+  const headers: Record<string, string> = {
     'x-api-key': API_KEY,
-    'Content-Type': 'application/json',
   };
 
-  // Don't stringify the body here as apiClient methods already do it
+  // Add existing headers from options, but handle Authorization separately for POL
+  if (options.headers) {
+    Object.entries(options.headers as Record<string, string>).forEach(([key, value]) => {
+      headers[key] = value;
+    });
+  }
+
+  // Only add Content-Type for non-FormData requests
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(url, {
     ...options,
     headers,
@@ -393,14 +429,14 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   return response.json();
 };
 
-// Create API client with standardized methods
+// Update API client
 const apiClient = {
   get: (endpoint: string) => fetchWithAuth(`${API_URL}${endpoint}`),
 
   post: (endpoint: string, data: any) =>
     fetchWithAuth(`${API_URL}${endpoint}`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: data instanceof FormData ? data : JSON.stringify(data),
     }),
 
   put: (endpoint: string, data: any) =>
@@ -412,6 +448,16 @@ const apiClient = {
   delete: (endpoint: string) =>
     fetchWithAuth(`${API_URL}${endpoint}`, {
       method: 'DELETE',
+    }),
+
+  // POL-specific method with custom headers
+  postPOL: (endpoint: string, formData: FormData) =>
+    fetchWithAuth(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${import.meta.env.VITE_POI_API_KEY}`,
+      },
+      body: formData,
     }),
 };
 
@@ -789,6 +835,28 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  // POL methods
+  const generatePOL = async (files: File[]): Promise<POLResult> => {
+    try {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('files', file);
+      });
+
+      const result = await apiClient.postPOL('/api/v1/inventions', formData);
+
+      return {
+        merkleRoot: result.result.root,
+        transactionData: result.result.transaction,
+        files: result.result.files,
+        metadata: result.metadata,
+      };
+    } catch (error) {
+      console.error('Error generating POL:', error);
+      throw error;
+    }
+  };
+
   // Provide all methods through context
   const value = {
     getUserById,
@@ -823,6 +891,7 @@ export const DatabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loading,
     getTwitterByProjectId,
     updateTwitterInfo,
+    generatePOL,
   };
 
   return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;

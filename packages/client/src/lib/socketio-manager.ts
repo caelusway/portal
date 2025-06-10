@@ -123,7 +123,11 @@ class SocketIOManager extends EventAdapter {
    * @param agentIds Array of agent IDs to connect to
    * @param options Additional options including userId
    */
-  public initialize(entityId: string, agentIds: string[], options?: { userId?: string }): void {
+  public initialize(
+    entityId: string,
+    agentIds: string[],
+    options?: { userId?: string; projectId?: string; walletAddress?: string }
+  ): void {
     this.entityId = entityId;
     this.agentIds = agentIds;
 
@@ -244,7 +248,10 @@ class SocketIOManager extends EventAdapter {
    * @param roomId Room/Agent ID to join
    * @param options Additional options including userId
    */
-  public async joinRoom(roomId: string, options?: { userId?: string }): Promise<void> {
+  public async joinRoom(
+    roomId: string,
+    options?: { userId?: string; projectId?: string; walletAddress?: string }
+  ): Promise<void> {
     if (!this.socket) {
       clientLogger.error('[SocketIO] Cannot join room: socket not initialized');
       return;
@@ -263,6 +270,8 @@ class SocketIOManager extends EventAdapter {
         entityId: this.entityId,
         agentIds: this.agentIds,
         userId: options?.userId,
+        projectId: options?.projectId,
+        walletAddress: options?.walletAddress,
       },
     });
 
@@ -294,7 +303,7 @@ class SocketIOManager extends EventAdapter {
     message: string,
     roomId: string,
     source: string,
-    options?: { userId?: string }
+    options?: { userId?: string; projectId?: string; walletAddress?: string }
   ): Promise<void> {
     if (!this.socket) {
       clientLogger.error('[SocketIO] Cannot send message: socket not initialized');

@@ -12,10 +12,12 @@ if (!MINTER_PRIVATE_KEY) {
   throw new Error('VITE_NFT_MINTER_PRIVATE_KEY is not set in environment variables!');
 }
 
+// Zora NFT Configuration (for Idea and Vision NFTs)
 export const ZORA_CONTRACT_ADDRESS = '0x1560aEc2263d8979F24Aa0a260bF11f55E458473' as const;
-const CHAIN = baseSepolia;
 export const IDEA_NFT_ID = 1n;
-export const VISION_NFT_ID = 1n; // <<< ASSUMING VISION IS TOKEN ID 2 >>>
+export const VISION_NFT_ID = 2n;
+
+const CHAIN = baseSepolia;
 
 // Helper Public Client (explicitly typed)
 export const publicClient = createPublicClient({
@@ -33,6 +35,7 @@ const walletClient = createWalletClient({
 
 /**
  * Mints an NFT directly to the user wallet using the minter wallet and Zora SDK.
+ * Used for Idea and Vision NFTs.
  *
  * @param toAddress The recipient's address (user's wallet).
  * @param tokenId The ID of the 1155 token to mint.
@@ -63,4 +66,87 @@ export async function mintNftToUser(
   return hash as Hex;
 }
 
-// Remove all minting logic and exports
+/**
+ * Submits a POL (Proof of Learning) proof to the Molecule POI contract
+ * Uses the contract address and payload from the POI API response
+ *
+ * @param contractAddress The contract address from POI API response (transaction.recipient)
+ * @param proofPayload The proof payload from POI API response (transaction.payload)
+ * @param userWalletAddress The user's wallet address for the transaction
+ * @returns The transaction hash
+ */
+export async function submitPOLProof(
+  contractAddress: Hex,
+  proofPayload: Hex,
+  userWalletAddress: Hex
+): Promise<Hex> {
+  try {
+    // Submit the proof transaction using the user's wallet (not the minter wallet)
+    // This creates a permanent on-chain record of the learning proof
+    const hash = await walletClient.sendTransaction({
+      account: userWalletAddress,
+      to: contractAddress,
+      data: proofPayload,
+      value: 0n,
+    });
+
+    return hash as Hex;
+  } catch (error) {
+    console.error('POL proof submission failed:', error);
+    throw new Error(
+      `Failed to submit POL proof: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Creates a commemorative POL NFT using the Zora contract
+ * This is separate from the proof submission and serves as a learning achievement badge
+ *
+ * @param toAddress The recipient's address (user's wallet).
+ * @param merkleRoot The merkle root from POI proof for verification.
+ * @param quantity The quantity to mint (default 1).
+ * @returns The transaction hash.
+ * @throws If transaction fails.
+ */
+export async function mintPOLNFT(
+  toAddress: Hex,
+  merkleRoot: Hex,
+  quantity: number = 1
+): Promise<Hex> {
+  try {
+    // Create a comment that includes the merkle root for verification
+    const comment = `POL NFT - Proof of Learning with merkle root: ${merkleRoot}`;
+
+    // Use a new token ID for POL NFTs (ID 3)
+    const POL_NFT_ID = 3n;
+
+    // Use the existing Zora minting system
+    const hash = await mintNftToUser(toAddress, POL_NFT_ID, quantity, comment);
+
+    return hash;
+  } catch (error) {
+    console.error('POL NFT minting failed:', error);
+    throw new Error(
+      `Failed to mint POL NFT: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Creates a comment string for POL NFT minting (for logging/display purposes)
+ *
+ * @param polData The POL result data from the API
+ * @param poiTransactionHash The POI blockchain transaction hash
+ * @returns Comment string for display
+ */
+export function createPOLComment(
+  polData: { merkleRoot: string; files: Array<{ filename: string; size: number }> },
+  poiTransactionHash?: string
+): string {
+  const fileCount = polData.files.length;
+  const merkleShort = polData.merkleRoot.substring(0, 10) + '...';
+  const poiTxShort = poiTransactionHash ? poiTransactionHash.substring(0, 10) + '...' : 'pending';
+
+  return `POL NFT - Files: ${fileCount} | Merkle: ${merkleShort} | POI Tx: ${poiTxShort}`;
+}
