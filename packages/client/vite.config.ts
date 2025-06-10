@@ -121,10 +121,6 @@ export default defineConfig(({ mode }): UserConfig => {
           ''
       ),
     },
-    optimizeDeps: {
-      include: ['zod'],
-      force: true,
-    },
     build: {
       outDir: 'dist',
       minify: false,
@@ -145,18 +141,11 @@ export default defineConfig(({ mode }): UserConfig => {
           // Also log to our custom logger
           clientElizaLogger.warn(warning.message || 'Unknown warning');
         },
-        external: [],
-      },
-      commonjsOptions: {
-        include: [/zod/, /node_modules/],
-        transformMixedEsModules: true,
       },
     },
     resolve: {
       alias: {
         '@': '/src',
-        // Force use of specific zod version
-        zod: path.resolve(__dirname, 'node_modules/zod'),
       },
     },
     logLevel: 'error', // Only show errors, not warnings
