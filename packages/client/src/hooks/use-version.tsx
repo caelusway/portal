@@ -38,26 +38,26 @@ export default function useVersion() {
       const thisVersion = info?.version;
       if (latestVersion && thisVersion) {
         if (semver.gt(latestVersion.replace('v', ''), thisVersion.replace('v', ''))) {
-          toast({
-            variant: 'default',
-            title: `New version ${latestVersion} is available.`,
-            description: 'Visit GitHub for more information.',
-            action: (
-              <NavLink to="https://github.com/elizaos/eliza/releases" target="_blank">
-                <ToastAction altText="Update">Update</ToastAction>
-              </NavLink>
-            ),
-          });
+          /* toast({
+             variant: 'default',
+             title: `New version ${latestVersion} is available.`,
+             description: 'Visit GitHub for more information.',
+             action: (
+               <NavLink to="https://github.com/elizaos/eliza/releases" target="_blank">
+                 <ToastAction altText="Update">Update</ToastAction>
+               </NavLink>
+             ),
+           });*/
         }
       }
     } catch (e) {
       clientLogger.error(`Unable to retrieve latest version from GitHub: ${e}`);
     }
   };
-
-  useEffect(() => {
-    compareVersion();
-  }, [compareVersion]);
+  /*
+    useEffect(() => {
+      compareVersion();
+    }, [compareVersion]);*/
 
   return null;
 }
