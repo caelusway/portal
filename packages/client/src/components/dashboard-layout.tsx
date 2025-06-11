@@ -55,7 +55,7 @@ const agentLevels: Record<
   3: {
     name: 'Community Engagement',
     description: 'Grow your Discord community and foster initial scientific engagement.',
-    levelupRequirements: ['Reach 5+ members', 'Share 5+ scientific papers', 'Send 50+ messages'],
+    levelupRequirements: ['Reach 10+ members', 'Share 25+ scientific papers', 'Send 100+ messages'],
   },
   4: {
     name: 'Social Foundation',
@@ -127,9 +127,9 @@ function DiscordMetricsDisplay({
   metrics: { members: number; papers: number; messages: number };
 }) {
   const requirements = {
-    members: 5,
-    papers: 5,
-    messages: 50,
+    members: 10,
+    papers: 25,
+    messages: 100,
   };
 
   const allCompleted =
