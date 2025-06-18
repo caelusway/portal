@@ -390,7 +390,7 @@ function Level1And2MetricsDisplay({
 
 function Level4SocialFoundationDisplay({
   twitterInfo,
-  settingsUrl = '/settings?tab=connections',
+  settingsUrl = '/settings',
   user,
 }: {
   twitterInfo?: { connected: boolean; username?: string; introTweetsCount: number };
@@ -1079,8 +1079,8 @@ export function DashboardLayout() {
                         twitterInfo={placeholderTwitterInfo}
                         settingsUrl={
                           process.env.VITE_PUBLIC_APP_URL
-                            ? `${process.env.VITE_PUBLIC_APP_URL}/settings?tab=connections`
-                            : '/settings?tab=connections'
+                            ? `${process.env.VITE_PUBLIC_APP_URL}/settings`
+                            : '/settings'
                         }
                         user={user}
                       />
